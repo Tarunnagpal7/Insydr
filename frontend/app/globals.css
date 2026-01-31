@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+
+@theme {
+  /* Colors - Milano Red Palette */
+  --color-milano-50: #fff1f1;
+  --color-milano-100: #ffe0e0;
+  --color-milano-200: #ffc6c6;
+  --color-milano-300: #ff9f9f;
+  --color-milano-400: #ff6868;
+  --color-milano-500: #fb3838;
+  --color-milano-600: #d91818;
+  --color-milano-700: #b71010;
+  --color-milano-800: #a21212;
+  --color-milano-900: #861616;
+  --color-milano-950: #490606;
+
+  /* Semantic Colors Mapping */
+  --color-primary: var(--color-milano-600);
+  --color-primary-hover: var(--color-milano-700);
+  --color-primary-light: var(--color-milano-100);
+  --color-primary-dark: var(--color-milano-800);
+  
+  --color-background: #ffffff;
+  --color-background-secondary: #f9fafb;
+  --color-background-tertiary: #f3f4f6;
+  
+  --color-foreground: #111827;
+  --color-foreground-secondary: #4b5563;
+  --color-foreground-muted: #9ca3af;
+  
+  --color-border: #e5e7eb;
+  --color-border-focus: var(--color-milano-500);
+  
+  --color-success: #10b981;
+  --color-error: var(--color-milano-600);
+  --color-warning: #f59e0b;
+  
+  /* Logo Outline Color */
+  --logo-stroke: #000000;
+}
+
+/* Dark Mode Overrides */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #0f0f0f;
+    --color-background-secondary: #1a1a1a;
+    --color-background-tertiary: #262626;
+    --color-foreground: #f9fafb;
+    --color-foreground-secondary: #d1d5db;
+    --color-foreground-muted: #6b7280;
+    --color-border: #374151;
+    --color-border: #374151;
+    --color-primary-light: var(--color-milano-950);
+    
+    /* Logo Outline Dark */
+    --logo-stroke: #ffffff;
+  }
+}
+
+/* Base Styles */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 100px;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-background-secondary;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-foreground-muted/50 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-foreground-secondary;
+  }
+}
+
+/* Utilities */
+@layer utilities {
+  .glass {
+    @apply bg-white/10 backdrop-blur-md border border-white/20;
+  }
+  
+  .glass-dark {
+    @apply bg-black/20 backdrop-blur-md border border-white/10;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-milano-500 to-milano-700;
+  }
+}
+
+/* Animations for Liquid Logo */
+@keyframes riseAndFlow {
+    0% {
+        clip-path: polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%); /* Empty */
+    }
+    100% {
+        clip-path: polygon(0% 45%, 100% 55%, 100% 100%, 0% 100%); /* Half full */
+    }
+}
+
+@keyframes waveScroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-60px); }
+}
+
+@keyframes waveBackgroundScroll {
+    0% { background-position-x: 0; }
+    100% { background-position-x: -60px; }
+}
+
+.animate-rise-flow {
+  animation: riseAndFlow 4s ease-out forwards;
+}
+
+.animate-wave-scroll {
+  animation: waveScroll 2s linear infinite;
+}
+
+.animate-wave-bg-scroll {
+  animation: waveBackgroundScroll 2s linear infinite;
+}
