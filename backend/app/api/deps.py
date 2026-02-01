@@ -42,6 +42,17 @@ async def get_workspace_service(db: AsyncSession = Depends(get_db)):
     return WorkspaceService(workspace_repo, member_repo, user_repo)
 
 
+async def get_api_key_service(db: AsyncSession = Depends(get_db)):
+    """Dependency to get api key service."""
+    from app.db.repositories.api_key_repository import ApiKeyRepository
+    from app.db.repositories.workspace_repository import WorkspaceRepository
+    from app.services.api_key_service import ApiKeyService
+
+    api_key_repo = ApiKeyRepository(db)
+    workspace_repo = WorkspaceRepository(db)
+    return ApiKeyService(api_key_repo, workspace_repo)
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)

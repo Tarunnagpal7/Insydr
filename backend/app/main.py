@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.auth import router as auth_router
 from app.api.v1.workspaces import router as workspace_router
+from app.api.v1.api_keys import router as api_key_router
 
 app = FastAPI(
     title="Insydr.AI Backend",
@@ -22,6 +23,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(workspace_router, prefix="/api/v1")
+app.include_router(api_key_router, prefix="/api/v1")
 
 
 @app.get("/health")

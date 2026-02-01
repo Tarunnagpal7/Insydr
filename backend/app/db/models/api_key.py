@@ -17,6 +17,7 @@ class ApiKey(UUIDBase, Base):
 
     allowed_domains: Mapped[list | None] = mapped_column(JSON)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    requests_count: Mapped[int] = mapped_column(default=0)
 
     last_used_at: Mapped[datetime | None]
     expires_at: Mapped[datetime | None]

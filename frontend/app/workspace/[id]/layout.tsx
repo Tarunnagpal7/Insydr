@@ -16,10 +16,11 @@ import {
   DocumentTextIcon,
   ChatBubbleLeftRightIcon,
   ChevronDownIcon,
-  Squares2X2Icon,
   ArrowLeftIcon,
   ArrowRightOnRectangleIcon,
-  UserCircleIcon
+  UserCircleIcon,
+  KeyIcon,
+  Squares2X2Icon
 } from '@heroicons/react/24/outline';
 
 const navigation = [
@@ -27,6 +28,7 @@ const navigation = [
   { name: 'Agents', href: '/agents', icon: ChatBubbleLeftRightIcon },
   { name: 'Knowledge Base', href: '/knowledge', icon: DocumentTextIcon },
   { name: 'Analytics', href: '/analytics', icon: ChartBarIcon },
+  { name: 'API Keys', href: '/settings/api-keys', icon: KeyIcon },
   { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
 ];
 
