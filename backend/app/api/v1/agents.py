@@ -98,4 +98,5 @@ async def chat_agent(
         print(f"Chat error: {e}")
         import traceback
         traceback.print_exc()
+        # Return generic error details in dev
         raise HTTPException(status_code=500, detail=str(e))

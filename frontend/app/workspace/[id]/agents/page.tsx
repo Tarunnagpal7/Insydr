@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { 
   PlusIcon, 
   ChatBubbleLeftRightIcon, 
@@ -11,7 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useAppDispatch, useAppSelector } from '@/src/store/hooks';
 import { fetchAgents, createAgent } from '@/src/store/agent.store';
-import { CreateAgentData } from '@/src/features/agents/agents.service';
+import { CreateAgentPayload } from '@/src/features/agents/agents.service';
 import { getDocuments, uploadDocument, Document } from '@/src/features/knowledge/knowledge.service';
 import toast from 'react-hot-toast';
 import { Dialog, Tab } from '@headlessui/react';
@@ -19,12 +19,13 @@ import classNames from 'classnames';
 
 export default function AgentsPage() {
   const params = useParams();
+  const router = useRouter();
   const workspaceId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
   const dispatch = useAppDispatch();
   const { agents, isLoading } = useAppSelector((state) => state.agent);
   
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [newAgentData, setNewAgentData] = useState<CreateAgentData>({ name: '', description: '' });
+  const [newAgentData, setNewAgentData] = useState<Partial<CreateAgentPayload>>({ name: '', description: '', agent_type: 'custom' });
   
   // Knowledge Selection State
   const [knowledgeSource, setKnowledgeSource] = useState<'upload' | 'select'>('upload');
@@ -66,23 +67,24 @@ export default function AgentsPage() {
       if (knowledgeSource === 'upload' && pdfFile) {
          const collectionId = "00000000-0000-0000-0000-000000000000"; 
          const newDoc = await uploadDocument(workspaceId, collectionId, pdfFile);
-         // Implicitly link this new doc
-         // NOTE: The backend Create Agent currently doesn't accept doc_ids to link directly in this MVP.
-         // We would probably need to call a separate link endpoint or extend create endpoint. 
-         // For now, we assume ALL workspace docs are shared or just ingesting is enough for RAG retrieval if it scans the whole workspace.
-         // The current Retrieve implementation filters by workspace_id, so effectively ALL docs in workspace are used.
-         // So simply uploading is enough.
-      } else {
-        // If selecting existing, we don't need to do anything as they are already in workspace.
-        // If we strictly wanted per-agent knowledge, we'd need to link them.
+         if (newDoc && newDoc.id) {
+             docIdsToLink.push(newDoc.id);
+         }
       }
 
-      // 2. Create Agent
-      await dispatch(createAgent({ workspaceId, data: newAgentData })).unwrap();
+      // 2. Create Agent with linked docs
+      const payload: CreateAgentPayload = {
+          name: newAgentData.name || 'New Agent',
+          description: newAgentData.description || '',
+          agent_type: newAgentData.agent_type || 'custom',
+          document_ids: docIdsToLink
+      };
+
+      await dispatch(createAgent({ workspaceId, data: payload })).unwrap();
       
       toast.success('Agent created successfully!', { id: toastId });
       setIsCreateModalOpen(false);
-      setNewAgentData({ name: '', description: '' });
+      setNewAgentData({ name: '', description: '', agent_type: 'custom' });
       setPdfFile(null);
       setSelectedDocIds([]);
     } catch (error: any) {
@@ -137,6 +139,7 @@ export default function AgentsPage() {
           {agents.map((agent) => (
             <div 
               key={agent.id}
+              onClick={() => router.push(`/workspace/${workspaceId}/agents/${agent.id}`)}
               className="bg-zinc-900 border border-white/10 rounded-xl p-5 hover:border-red-500/50 transition-colors group cursor-pointer"
             >
               <div className="flex items-start justify-between mb-4">

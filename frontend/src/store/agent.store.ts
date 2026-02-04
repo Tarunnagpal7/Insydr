@@ -1,6 +1,6 @@
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { Agent, CreateAgentData, getAgents, getAgent, createAgent as createAgentService } from '@/src/features/agents/agents.service';
+import { Agent, CreateAgentPayload, getAgents, getAgent, createAgent as createAgentService } from '@/src/features/agents/agents.service';
 
 interface AgentState {
   agents: Agent[];
@@ -40,7 +40,7 @@ export const fetchAgent = createAsyncThunk(
 
 export const createAgent = createAsyncThunk(
   'agent/createAgent',
-  async ({ workspaceId, data }: { workspaceId: string; data: CreateAgentData }, { rejectWithValue }) => {
+  async ({ workspaceId, data }: { workspaceId: string; data: CreateAgentPayload }, { rejectWithValue }) => {
     try {
       return await createAgentService(workspaceId, data);
     } catch (error: any) {
