@@ -13,7 +13,7 @@ class Embedding(UUIDBase, Base):
     chunk_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
 
-    embedding: Mapped[list[float]] = mapped_column(Vector(1536))
+    embedding: Mapped[list[float]] = mapped_column(Vector(384))
     model_name: Mapped[str]
     dimension: Mapped[int]
 

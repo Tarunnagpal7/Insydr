@@ -50,7 +50,21 @@ async def get_api_key_service(db: AsyncSession = Depends(get_db)):
 
     api_key_repo = ApiKeyRepository(db)
     workspace_repo = WorkspaceRepository(db)
+    api_key_repo = ApiKeyRepository(db)
+    workspace_repo = WorkspaceRepository(db)
     return ApiKeyService(api_key_repo, workspace_repo)
+
+
+async def get_agent_service(db: AsyncSession = Depends(get_db)):
+    """Dependency to get agent service."""
+    from app.services.agent_service import AgentService
+    return AgentService(db)
+
+
+async def get_knowledge_service(db: AsyncSession = Depends(get_db)):
+    """Dependency to get knowledge service."""
+    from app.services.knowledge_service import KnowledgeService
+    return KnowledgeService(db)
 
 
 async def get_current_user(
@@ -86,11 +100,11 @@ async def get_current_user(
             detail="User not found"
         )
 
-    if not user.email_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email not verified"
-        )
+    # if not user.email_verified:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="Email not verified"
+    #     )
 
     return user
 
