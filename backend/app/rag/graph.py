@@ -19,22 +19,23 @@ async def retrieve_node(state: GraphState, retriever: Retriever):
     """
     Retrieve relevant documents based on the question.
     """
-    question = state["question"]
-    workspace_id = state["workspace_id"]
-    agent_id = state.get("agent_id")
-    
-    document_ids = None
-    # Assuming we can fetch agent config here or it is passed in state.
-    # Current state definition in graph.py doesn't have agent_config.
-    # Ideally, we should fetch the agent here or pass the config in the state.
-    # To keep it simple, let's assume we fetch the agent, or better, pass the 'document_ids' in state.
-    # Let's update state to include optional document_ids or agent_configuration.
-    
-    if "document_ids" in state:
-        document_ids = state["document_ids"]
+    try:
+        question = state["question"]
+        workspace_id = state["workspace_id"]
+        agent_id = state.get("agent_id")
+        
+        document_ids = None
 
-    docs = await retriever.retrieve(question, workspace_id, document_ids=document_ids)
-    return {"context": docs}
+        if "document_ids" in state:
+            document_ids = state["document_ids"]
+
+        docs = await retriever.retrieve(question, workspace_id, document_ids=document_ids)
+        return {"context": docs}
+    except Exception as e:
+        print(f"Error in retrieve_node: {e}")
+        import traceback
+        traceback.print_exc()
+        raise e
 
 async def generate_node(state: GraphState, llm_service: LLMService):
     """
@@ -71,8 +72,24 @@ class RAGGraph:
         workflow = StateGraph(GraphState)
         
         # Add Nodes
-        workflow.add_node("retrieve", lambda state: retrieve_node(state, self.retriever))
-        workflow.add_node("generate", lambda state: generate_node(state, self.llm_service))
+        # Wrapper functions to handle async calls properly if needed, but LangGraph supports async nodes.
+        # The issue "Expected dict, got <coroutine...>" suggests the lambda is returning a coroutine but LangGraph might be expecting the node function to be awaited or defined differently if using lambdas.
+        # It's better to pass the partial function or just the function and inject dependencies differently,
+        # OR define the node functions as just taking 'state' and accessing dependencies from self if possible,
+        # OR defining them as sync wrappers that return the coroutine (but LangGraph handles async def).
+
+        # The lambda `lambda state: retrieve_node(state, self.retriever)` returns a coroutine object when called.
+        # If LangGraph executes this sync lambda, it gets a coroutine back and might not await it if it expects a dict immediately.
+        # Let's wrap them in async functions or use functools.partial.
+        
+        async def call_retrieve(state):
+            return await retrieve_node(state, self.retriever)
+            
+        async def call_generate(state):
+            return await generate_node(state, self.llm_service)
+
+        workflow.add_node("retrieve", call_retrieve)
+        workflow.add_node("generate", call_generate)
         
         # Add Edges
         workflow.set_entry_point("retrieve")

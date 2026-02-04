@@ -13,37 +13,42 @@ export interface Agent {
   updated_at: string;
 }
 
-export interface CreateAgentData {
+export interface CreateAgentPayload {
   name: string;
   description?: string;
-  agent_type?: string;
-  configuration?: any;
-  behavior_settings?: any;
+  agent_type: string;
+  configuration?: Record<string, any>;
+  behavior_settings?: Record<string, any>;
+  document_ids?: string[];
 }
 
 export const getAgents = async (workspaceId: string): Promise<Agent[]> => {
-  const response = await apiClient.get('/agents', {
-    params: { workspace_id: workspaceId }
-  });
-  return response.data;
-};
-
-export const createAgent = async (workspaceId: string, data: CreateAgentData): Promise<Agent> => {
-  const response = await apiClient.post('/agents', data, {
-    params: { workspace_id: workspaceId }
+  const response = await apiClient.get<Agent[]>('/agents/', {
+    params: { workspace_id: workspaceId },
   });
   return response.data;
 };
 
 export const getAgent = async (agentId: string): Promise<Agent> => {
-  const response = await apiClient.get(`/agents/${agentId}`);
+  const response = await apiClient.get<Agent>(`/agents/${agentId}`);
   return response.data;
 };
 
+export const createAgent = async (workspaceId: string, payload: CreateAgentPayload): Promise<Agent> => {
+  const response = await apiClient.post<Agent>('/agents/', payload, {
+    params: { workspace_id: workspaceId },
+  });
+  return response.data;
+};
+
+export const deleteAgent = async (agentId: string): Promise<void> => {
+  await apiClient.delete(`/agents/${agentId}`);
+};
+
 export const chatWithAgent = async (agentId: string, message: string): Promise<string> => {
-  const response = await apiClient.post(`/agents/${agentId}/chat`, {
-    message,
-    agent_id: agentId
+  const response = await apiClient.post<{ response: string }>(`/agents/${agentId}/chat`, {
+    message: message,
+    agent_id: agentId 
   });
   return response.data.response;
 };
