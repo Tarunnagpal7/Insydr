@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     APP_NAME: str = "Insydr.AI"
     DEBUG: bool = True
 
+    # AI Providers
+    HF_TOKEN: Optional[str] = None
+    GOOGLE_API_KEY: Optional[str] = None
+    
+    # Cloudinary
+    CLOUDINARY_CLOUD_NAME: Optional[str] = None
+    CLOUDINARY_API_KEY: Optional[str] = None
+    CLOUDINARY_API_SECRET: Optional[str] = None
+
     class Config:
         env_file = ".env"
 

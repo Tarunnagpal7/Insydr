@@ -54,8 +54,8 @@ class AuthService:
         if not verify_password(password, user.password_hash):
             raise ValueError("The email or password you entered is incorrect. Please try again.")
 
-        if not user.email_verified:
-            raise ValueError("Your email address hasn't been verified yet. Please check your inbox for the verification link.")
+        # if not user.email_verified:
+        #     raise ValueError("Your email address hasn't been verified yet. Please check your inbox for the verification link.")
 
         # Update last login
         user.last_login_at = datetime.utcnow()
