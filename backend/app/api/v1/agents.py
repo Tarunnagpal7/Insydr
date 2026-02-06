@@ -62,6 +62,48 @@ async def get_agent(
         raise HTTPException(status_code=404, detail="Agent not found")
     return agent
 
+@router.get("/{agent_id}/widget-config", response_model=AgentResponse)
+async def get_agent_widget_config(
+    agent_id: UUID,
+    service: AgentService = Depends(deps.get_agent_service),
+):
+    """
+    Get agent configuration for public widget.
+    TODO: Add domain allowlist check here.
+    """
+    agent = await service.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return agent
+
+from app.api.schemas.agent import AgentUpdate
+
+@router.patch("/{agent_id}", response_model=AgentResponse)
+async def update_agent(
+    agent_id: UUID,
+    agent_update: AgentUpdate,
+    current_user: User = Depends(deps.get_current_user),
+    service: AgentService = Depends(deps.get_agent_service),
+):
+    """
+    Update an agent's configuration.
+    """
+    agent = await service.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    # Check permissions...
+    
+    updated_agent = await service.update_agent(
+        agent_id, 
+        name=agent_update.name,
+        description=agent_update.description,
+        configuration=agent_update.configuration,
+        behavior_settings=agent_update.behavior_settings,
+        status=agent_update.status
+    )
+    return updated_agent
+
 @router.post("/{agent_id}/chat", response_model=ChatResponse)
 async def chat_agent(
     agent_id: UUID,

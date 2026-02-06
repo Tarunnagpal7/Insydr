@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Insydr Widget Dev</title>
+    <!-- Mock Agent ID for dev -->
+    <script id="insydr-widget-data" data-agent-id="c02c8109-23cc-44fa-9c15-779217fed827"></script>
+    <script>
+      // Mock the currentScript behavior for dev since standard script src loading is different in module
+      // We manually set the attribute on the script tag that loads main.jsx (which Vite injects)
+      // Actually main.jsx looks for `document.currentScript`. In module type, currentScript is null.
+      // We need a fallback in main.jsx to find the script tag by ID or fallback for dev.
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insydr Widget Verification</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+        .container {
+            text-align: center;
+            max-width: 600px;
+            padding: 2rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        code {
+            background: #eee;
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Insydr Widget Test</h1>
+        <p>This page is testing the integration of the Insydr Agent Widget.</p>
+        <p><strong>Agent ID:</strong> <code>0443461e-2ddb-4901-995a-a5e3fcdfa29c</code></p>
+        <p>Look for the chat bubble in the corner!</p>
+    </div>
+
+    <!-- Insydr Widget Script -->
+    <script src="http://localhost:5173/widget.js" data-agent-id="0443461e-2ddb-4901-995a-a5e3fcdfa29c" defer></script>
+</body>
+</html>
