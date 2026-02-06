@@ -45,6 +45,11 @@ export const deleteAgent = async (agentId: string): Promise<void> => {
   await apiClient.delete(`/agents/${agentId}`);
 };
 
+export const updateAgent = async (agentId: string, payload: Partial<CreateAgentPayload> & { status?: string }): Promise<Agent> => {
+  const response = await apiClient.patch<Agent>(`/agents/${agentId}`, payload);
+  return response.data;
+};
+
 export const chatWithAgent = async (agentId: string, message: string): Promise<string> => {
   const response = await apiClient.post<{ response: string }>(`/agents/${agentId}/chat`, {
     message: message,
