@@ -31,11 +31,14 @@ if (!scriptTag) {
 
 const agentId = scriptTag?.getAttribute('data-agent-id');
 const apiBase = scriptTag?.getAttribute('data-api-base') || 'http://127.0.0.1:8000/api/v1';
+const apiKey = scriptTag?.getAttribute('data-api-key');
+console.log('[Insydr] Script Config:', { agentId, apiKey: apiKey ? '***' + apiKey.slice(-4) : 'MISSING', apiBase });
 
 if (agentId) {
     // Collect page data (like Google Analytics)
     const pageData = {
         agent_id: agentId,
+        api_key: apiKey || null,
         page_url: window.location.href,
         page_title: document.title,
         referrer: document.referrer || null,
