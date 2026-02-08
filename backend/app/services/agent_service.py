@@ -92,9 +92,14 @@ class AgentService:
         if not agent:
             raise ValueError("Agent not found")
         
+        # Only update fields that are explicitly provided and not None
         for key, value in kwargs.items():
-            if hasattr(agent, key):
+            if value is not None and hasattr(agent, key):
                 setattr(agent, key, value)
+        
+        # Update timestamp
+        from datetime import datetime
+        agent.updated_at = datetime.utcnow()
         
         return await self.agent_repo.update(agent)
 

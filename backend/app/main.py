@@ -7,6 +7,7 @@ from app.api.v1.api_keys import router as api_key_router
 from app.api.v1.agents import router as agents_router
 from app.api.v1.knowledge import router as knowledge_router
 from app.api.v1.widget import router as widget_router
+from app.api.v1.analytics import router as analytics_router
 
 app = FastAPI(
     title="Insydr.AI Backend",
@@ -31,6 +32,7 @@ app.include_router(api_key_router, prefix="/api/v1")
 app.include_router(agents_router, prefix="/api/v1/agents", tags=["Agents"])
 app.include_router(knowledge_router, prefix="/api/v1/knowledge", tags=["Knowledge"])
 app.include_router(widget_router, prefix="/api/v1/widget", tags=["Widget (Public)"])
+app.include_router(analytics_router, prefix="/api/v1/analytics", tags=["Analytics"])
 
 
 @app.get("/health")
