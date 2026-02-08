@@ -37,6 +37,7 @@ router = APIRouter()
 class WidgetInitRequest(BaseModel):
     """Sent when widget loads on a page"""
     agent_id: str
+    api_key: Optional[str] = None
     page_url: str           # Full URL of the page
     page_title: Optional[str] = None
     referrer: Optional[str] = None
@@ -78,10 +79,12 @@ class WidgetEventRequest(BaseModel):
 # ============ HELPER FUNCTIONS ============
 
 def extract_hostname(url: str) -> str:
-    """Extract hostname from URL"""
+    """Extract hostname from URL (ignoring port)"""
     try:
         parsed = urlparse(url)
-        return parsed.netloc.lower().replace('www.', '')
+        # parsed.hostname returns the host without port, parsed.netloc includes port
+        hostname = parsed.hostname or parsed.netloc
+        return hostname.lower().replace('www.', '')
     except:
         return ""
 
@@ -96,12 +99,21 @@ def is_domain_allowed(hostname: str, allowed_domains: list) -> bool:
     
     hostname_clean = hostname.lower().replace('www.', '')
     
+    # DEV FRIENDLY: Treat localhost and 127.0.0.1 as equivalent to avoid confusion
+    dev_hosts = {'localhost', '127.0.0.1'}
+    is_dev_request = hostname_clean in dev_hosts
+
     for domain in allowed_domains:
         domain_clean = domain.lower().replace('www.', '').strip()
         if not domain_clean:
             continue
+        
         # Exact match or subdomain match
         if hostname_clean == domain_clean or hostname_clean.endswith('.' + domain_clean):
+            return True
+            
+        # Dev equivalence check
+        if is_dev_request and domain_clean in dev_hosts:
             return True
     
     return False
@@ -114,9 +126,10 @@ async def widget_init(
     request: WidgetInitRequest,
     req: Request,
     db: AsyncSession = Depends(deps.get_db),
+    api_key_service = Depends(deps.get_api_key_service)
 ):
     """
-    Initialize widget session - called when widget loads on a page.
+    Initialize secure widget session.
     
     This is the first call the widget makes. It:
     1. Validates the agent exists
@@ -125,24 +138,59 @@ async def widget_init(
     4. Returns widget configuration
     """
     try:
-        agent_id = UUID(request.agent_id)
+        agent_uuid = UUID(request.agent_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid agent_id format")
     
-    # Fetch agent
-    stmt = select(Agent).where(Agent.id == agent_id)
+    stmt = select(Agent).where(Agent.id == agent_uuid)
     result = await db.execute(stmt)
     agent = result.scalar_one_or_none()
     
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
-    # Extract hostname and check domain whitelist
+        
     hostname = extract_hostname(request.page_url)
-    allowed_domains = agent.allowed_domains or []
     
-    is_allowed = is_domain_allowed(hostname, allowed_domains)
+    # === SECURITY CHECK ===
+    is_allowed = False
+    print(f"DEBUG: Widget Init for Agent {request.agent_id} from Host: {hostname}")
     
+    if request.api_key:
+        print(f"DEBUG: Validating API Key: {request.api_key[:15]}...")
+        # Validate API Key Identity (Skip key-level domain check as per user request)
+        key_record = await api_key_service.validate_api_key(request.api_key, None)
+        
+        if not key_record:
+            print("DEBUG: API Key Lookup FAILED. Key not found or inactive.")
+            is_allowed = False
+            auth_error = "Invalid API Key."
+        elif key_record.workspace_id != agent.workspace_id:
+            print(f"DEBUG: Workspace Mismatch! Key WS: {key_record.workspace_id}, Agent WS: {agent.workspace_id}")
+            is_allowed = False
+            auth_error = "API Key does not belong to this agent's workspace."
+        else:
+            print(f"DEBUG: API Key Valid. Checking Agent Domains: {agent.allowed_domains}")
+            # Enforce Agent-Level Domain Whitelist
+            # If agent has allowed_domains set, we MUST match one of them.
+            if agent.allowed_domains and len(agent.allowed_domains) > 0:
+                if not is_domain_allowed(hostname, agent.allowed_domains):
+                    print(f"SECURITY BLOCK: Hostname '{hostname}' (Original: {request.page_url}) not in allowed domains: {agent.allowed_domains}")
+                    is_allowed = False
+                    auth_error = f"Domain '{hostname}' is not authorized by Agent settings."
+                else:
+                    print("DEBUG: Domain Allowed.")
+                    is_allowed = True
+            else:
+                print("DEBUG: No Agent domains set. Allowing all.")
+                # If Agent has no domains set, allow all (since API key is valid)
+                is_allowed = True
+            
+    else:
+        print("DEBUG: No API Key provided.")
+        # STRICT SECURITY: API Key is mandatory
+        is_allowed = False
+        auth_error = "API Key is required. Please configure it in your integration settings."
+
     if not is_allowed:
         return WidgetInitResponse(
             agent_id=str(agent.id),
@@ -150,7 +198,7 @@ async def widget_init(
             widget_settings={},
             session_id="",
             allowed=False,
-            error=f"Domain '{hostname}' is not authorized to use this widget"
+            error=auth_error or "Access denied"
         )
     
     # Generate session ID
@@ -176,7 +224,8 @@ async def widget_init(
         started_at=datetime.utcnow(),
         meta={
             "referrer": request.referrer,
-            "init_time": datetime.utcnow().isoformat()
+            "init_time": datetime.utcnow().isoformat(),
+            "auth_method": "api_key" if request.api_key else "domain_whitelist"
         }
     )
     db.add(conversation)
@@ -193,6 +242,7 @@ async def widget_init(
             "hostname": hostname,
             "referrer": request.referrer,
             "user_agent": user_agent,
+            "auth_method": "api_key" if request.api_key else "domain_whitelist"
         }
     )
     db.add(event)

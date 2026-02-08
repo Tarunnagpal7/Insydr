@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Agent, getAgent, updateAgent, chatWithAgent } from '@/src/features/agents/agents.service';
+import { Agent, getAgent, updateAgent, chatWithAgent, deleteAgent } from '@/src/features/agents/agents.service';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Send, Sparkles, Bot, Save, Code, Settings, MessageSquare, Layout, Palette, Zap, Copy, Globe, Shield, CheckCircle, Terminal, ExternalLink, Layers } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, Bot, Save, Code, Settings, MessageSquare, Layout, Palette, Zap, Copy, Globe, Shield, CheckCircle, Terminal, ExternalLink, Layers, X, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Tab } from '@headlessui/react';
 import classNames from 'classnames';
@@ -45,6 +45,10 @@ export default function AgentDetailsPage() {
   // Widget Customization State
   const [widgetSettings, setWidgetSettings] = useState<WidgetSettings>(DEFAULT_WIDGET_SETTINGS);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Settings State
+  const [domainInput, setDomainInput] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Chat State
   const [messages, setMessages] = useState<Message[]>([]);
@@ -84,6 +88,58 @@ export default function AgentDetailsPage() {
     }
   };
 
+  const handleAddDomain = () => {
+    if (!domainInput || !agent) return;
+    try {
+        let domain = domainInput.trim().toLowerCase();
+        // Clean input
+        domain = domain.replace(/^https?:\/\//, '').split('/')[0].replace(/^www\./, '');
+        
+        if (!domain.includes('.')) {
+             toast.error("Please enter a valid domain (e.g. example.com)");
+             return;
+        }
+
+        const currentDomains = agent.allowed_domains || [];
+        if (!currentDomains.includes(domain)) {
+            setAgent({
+                ...agent,
+                allowed_domains: [...currentDomains, domain]
+            });
+            setHasUnsavedChanges(true);
+            setDomainInput('');
+            toast.success("Domain added");
+        } else {
+             toast.error("Domain already filtered");
+        }
+    } catch (e) {
+        toast.error("Invalid domain format");
+    }
+  };
+
+  const handleRemoveDomain = (domainToRemove: string) => {
+    if (!agent) return;
+    setAgent({
+        ...agent,
+        allowed_domains: (agent.allowed_domains || []).filter(d => d !== domainToRemove)
+    });
+    setHasUnsavedChanges(true);
+  };
+
+  const handleDeleteAgent = async () => {
+      if (!confirm("Are you sure you want to delete this agent? This action cannot be undone.")) return;
+      setIsDeleting(true);
+      const toastId = toast.loading("Deleting agent...");
+      try {
+          await deleteAgent(agentId);
+          toast.success("Agent deleted", { id: toastId });
+          router.push(`/workspace/${workspaceId}/agents`);
+      } catch (e) {
+          toast.error("Failed to delete agent", { id: toastId });
+          setIsDeleting(false);
+      }
+  };
+
   const handleSaveSettings = async () => {
       if (!agent) return;
       const toastId = toast.loading("Saving changes...");
@@ -95,7 +151,8 @@ export default function AgentDetailsPage() {
           
           await updateAgent(agent.id, {
               name: agent.name,
-              configuration: updatedConfig
+              configuration: updatedConfig,
+              allowed_domains: agent.allowed_domains
           });
           
           setHasUnsavedChanges(false);
@@ -223,10 +280,10 @@ export default function AgentDetailsPage() {
   if (!agent) return null;
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col overflow-hidden -m-6">
+    <div className="h-full flex flex-col -m-8">
         <Tab.Group>
             {/* Fixed Header with Tabs */}
-            <div className="shrink-0 bg-zinc-950/95 backdrop-blur-md border-b border-white/5 px-6 pt-6 pb-0">
+            <div className=" sticky -top-10 z-50 w-full shrink-0 bg-zinc-950/95 backdrop-blur-md border-b border-white/5 px-6 pt-6 pb-0">
                 <div className="flex items-center justify-between pb-4">
                     <div className="flex items-center gap-4">
                         <button 
@@ -262,7 +319,7 @@ export default function AgentDetailsPage() {
                 {/* Tabs */}
                 <div className="border-b border-white/10">
                     <Tab.List className="flex space-x-6">
-                        {['Playground', 'Customization', 'Integration'].map((tab) => (
+                        {['Playground', 'Customization', 'Integration', 'Settings'].map((tab) => (
                             <Tab
                                 key={tab}
                                 className={({ selected }) =>
@@ -282,7 +339,7 @@ export default function AgentDetailsPage() {
             </div>
 
             {/* Tab Content - Full height scrollable area */}
-            <div className="h-full flex-1 min-h-0 ">
+            <div className="h-full  flex-1 min-h-0 ">
                 <Tab.Panels className="h-full">
                     {/* 1. Playground Panel */}
                     <Tab.Panel className="h-full flex gap-6 p-6 focus:outline-none">
@@ -556,7 +613,7 @@ export default function AgentDetailsPage() {
                                      </div>
                                      <button 
                                         onClick={() => {
-                                            const code = `<script src="http://localhost:5173/widget.js" data-agent-id="${agentId}" data-api-base="http://localhost:8000/api/v1" defer></script>`;
+                                            const code = `<script src="http://localhost:5173/widget.js" data-agent-id="${agentId}" data-api-key="YOUR_API_KEY" data-api-base="http://localhost:8000/api/v1" defer></script>`;
                                             navigator.clipboard.writeText(code);
                                             toast.success("Copied to clipboard!");
                                         }}
@@ -573,6 +630,7 @@ export default function AgentDetailsPage() {
                                              <span className="text-purple-400">&lt;script</span>{'\n'}
                                              <span className="text-cyan-400 ml-4">src</span>=<span className="text-emerald-400">"http://localhost:5173/widget.js"</span>{'\n'}
                                              <span className="text-cyan-400 ml-4">data-agent-id</span>=<span className="text-emerald-400">"{agentId}"</span>{'\n'}
+                                             <span className="text-cyan-400 ml-4">data-api-key</span>=<span className="text-emerald-400">"YOUR_API_KEY"</span>{'\n'}
                                              <span className="text-cyan-400 ml-4">data-api-base</span>=<span className="text-emerald-400">"http://localhost:8000/api/v1"</span>{'\n'}
                                              <span className="text-cyan-400 ml-4">defer</span>{'\n'}
                                              <span className="text-purple-400">&gt;&lt;/script&gt;</span>
@@ -694,6 +752,134 @@ export default function AgentDetailsPage() {
                                      <span className="text-xs text-gray-500 group-hover:text-red-400 transition-colors">View docs →</span>
                                  </div>
                              </div>
+                         </div>
+
+                     </motion.div>
+                </Tab.Panel>
+
+                {/* 4. Settings Panel */}
+                <Tab.Panel className="h-full p-6 focus:outline-none overflow-y-auto pb-32">
+                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl space-y-8">
+                         
+                         {/* General Settings */}
+                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
+                            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                <Settings className="w-5 h-5 text-gray-400" />
+                                General Settings
+                            </h2>
+                            <div className="space-y-4 max-w-xl">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-1">Agent Name</label>
+                                    <input 
+                                        type="text" 
+                                        value={agent.name}
+                                        onChange={(e) => {
+                                            setAgent({...agent, name: e.target.value});
+                                            setHasUnsavedChanges(true);
+                                        }}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-red-500/50 transition-colors"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-1">Description</label>
+                                    <textarea 
+                                        value={agent.description || ''}
+                                        onChange={(e) => {
+                                            setAgent({...agent, description: e.target.value});
+                                            setHasUnsavedChanges(true);
+                                        }}
+                                        rows={3}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-red-500/50 transition-colors resize-none"
+                                        placeholder="Describe what this agent does..."
+                                    />
+                                </div>
+                            </div>
+                         </div>
+
+                         {/* Domain Security */}
+                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
+                            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                                <Shield className="w-5 h-5 text-emerald-500" />
+                                Domain Security (Agent Level)
+                            </h2>
+                            <p className="text-sm text-gray-400 mb-6">
+                                Restrict which domains can embed this agent. 
+                                <span className="text-red-400 ml-1">
+                                    If you use an API Key, these rules apply IN ADDITION to the key's restrictions.
+                                </span>
+                            </p>
+
+                            <div className="space-y-4 max-w-xl">
+                                <div className="flex gap-3">
+                                    <div className="relative flex-1">
+                                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                                        <input 
+                                            type="text" 
+                                            value={domainInput}
+                                            onChange={(e) => setDomainInput(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleAddDomain()}
+                                            placeholder="example.com"
+                                            className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 transition-colors"
+                                        />
+                                    </div>
+                                    <button 
+                                        onClick={handleAddDomain}
+                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors border border-emerald-500/20"
+                                    >
+                                        Add
+                                    </button>
+                                </div>
+
+                                {(!agent.allowed_domains || agent.allowed_domains.length === 0) ? (
+                                    <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
+                                        <Zap className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-sm text-amber-200 font-medium">No restrictions set</p>
+                                            <p className="text-xs text-amber-200/60 mt-1">
+                                                This agent can be embedded anywhere unless an API Key is enforced. We recommend adding domains or using an API Key.
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {agent.allowed_domains.map((domain, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-3 bg-black/40 border border-white/5 rounded-lg group hover:border-white/10 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <Globe className="w-4 h-4 text-emerald-500" />
+                                                    <span className="text-sm text-gray-300 font-mono">{domain}</span>
+                                                </div>
+                                                <button 
+                                                    onClick={() => handleRemoveDomain(domain)}
+                                                    className="p-1.5 hover:bg-red-500/20 text-gray-500 hover:text-red-400 rounded-lg transition-colors"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                         </div>
+
+                         {/* Danger Zone */}
+                         <div className="bg-red-950/20 border border-red-500/20 rounded-2xl p-6">
+                            <h2 className="text-lg font-semibold text-red-500 mb-4 flex items-center gap-2">
+                                <AlertCircle className="w-5 h-5" />
+                                Danger Zone
+                            </h2>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-white">Delete Agent</p>
+                                    <p className="text-xs text-gray-400 mt-1">Permanently delete this agent and all its conversation history.</p>
+                                </div>
+                                <button 
+                                    onClick={handleDeleteAgent}
+                                    disabled={isDeleting}
+                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors border border-red-500/50 shadow-lg shadow-red-900/20"
+                                >
+                                    {isDeleting ? 'Deleting...' : 'Delete Agent'}
+                                </button>
+                            </div>
                          </div>
 
                      </motion.div>
