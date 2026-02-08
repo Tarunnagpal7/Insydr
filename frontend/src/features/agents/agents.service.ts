@@ -9,6 +9,7 @@ export interface Agent {
   version: string;
   configuration?: any;
   behavior_settings?: any;
+  allowed_domains?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -20,6 +21,7 @@ export interface CreateAgentPayload {
   configuration?: Record<string, any>;
   behavior_settings?: Record<string, any>;
   document_ids?: string[];
+  allowed_domains?: string[];
 }
 
 export const getAgents = async (workspaceId: string): Promise<Agent[]> => {

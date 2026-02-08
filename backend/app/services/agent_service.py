@@ -16,7 +16,8 @@ class AgentService:
                            agent_type: str = "custom",
                            configuration: Optional[Dict] = None,
                            behavior_settings: Optional[Dict] = None,
-                           document_ids: Optional[List[UUID]] = None) -> Agent:
+                           document_ids: Optional[List[UUID]] = None,
+                           allowed_domains: Optional[List[str]] = None) -> Agent:
         agent = Agent(
             workspace_id=workspace_id,
             name=name,
@@ -27,7 +28,8 @@ class AgentService:
             configuration=configuration or {},
             behavior_settings=behavior_settings or {},
             response_config={},
-            conversation_rules={}
+            conversation_rules={},
+            allowed_domains=allowed_domains or []
         )
         created_agent = await self.agent_repo.create(agent)
         

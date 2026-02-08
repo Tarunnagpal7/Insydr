@@ -503,8 +503,8 @@ export default function AgentDetailsPage() {
                 </Tab.Panel>
 
                 {/* 3. Integration Panel */}
-                <Tab.Panel className="h-full pt-4 focus:outline-none">
-                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-3xl mx-auto space-y-8">
+                <Tab.Panel className="h-full pt-4 focus:outline-none overflow-y-auto">
+                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-3xl mx-auto space-y-8 pb-8">
                          <div className="text-center space-y-2">
                              <div className="w-16 h-16 bg-red-600/10 rounded-full flex items-center justify-center mx-auto mb-4">
                                  <Code className="w-8 h-8 text-red-500" />
@@ -513,12 +513,40 @@ export default function AgentDetailsPage() {
                              <p className="text-gray-400">Add this agent to your website in less than 2 minutes.</p>
                          </div>
 
+                         {/* Allowed Domains Info */}
+                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
+                             <h3 className="text-sm font-semibold text-gray-400 uppercase mb-3 flex items-center gap-2">
+                                 <Settings className="w-4 h-4" /> Allowed Domains
+                             </h3>
+                             {agent.allowed_domains && agent.allowed_domains.length > 0 ? (
+                                 <div className="space-y-2">
+                                     <p className="text-sm text-gray-300 mb-3">This widget will only work on these domains:</p>
+                                     <div className="flex flex-wrap gap-2">
+                                         {agent.allowed_domains.map((domain, idx) => (
+                                             <span key={idx} className="px-3 py-1 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full text-sm font-mono">
+                                                 {domain}
+                                             </span>
+                                         ))}
+                                     </div>
+                                 </div>
+                             ) : (
+                                 <div className="flex items-center gap-3 p-4 bg-yellow-900/10 border border-yellow-900/20 rounded-xl">
+                                     <Zap className="w-5 h-5 text-yellow-500 shrink-0" />
+                                     <p className="text-sm text-yellow-400">
+                                         <strong>Warning:</strong> No domain restrictions set. This widget can be embedded on any website. Configure allowed domains in agent settings for security.
+                                     </p>
+                                 </div>
+                             )}
+                         </div>
+
+                         {/* Embed Code */}
                          <div className="bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden">
                              <div className="px-6 py-4 border-b border-white/10 bg-black/20 flex items-center justify-between">
                                  <span className="text-sm font-mono text-gray-400">Step 1: Copy Embed Code</span>
                                  <button 
                                     onClick={() => {
-                                        navigator.clipboard.writeText(`<script src="http://localhost:5173/widget.js" data-agent-id="${agentId}" defer></script>`);
+                                        const code = `<script src="http://localhost:5173/widget.js" data-agent-id="${agentId}" data-api-base="http://localhost:8000/api/v1" defer></script>`;
+                                        navigator.clipboard.writeText(code);
                                         toast.success("Copied to clipboard");
                                     }}
                                     className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded transition-colors"
@@ -531,6 +559,7 @@ export default function AgentDetailsPage() {
 {`<script 
   src="http://localhost:5173/widget.js" 
   data-agent-id="${agentId}" 
+  data-api-base="http://localhost:8000/api/v1"
   defer
 ></script>`}
                                  </pre>
@@ -540,6 +569,29 @@ export default function AgentDetailsPage() {
                                      <Zap className="w-4 h-4" />
                                      Paste this code before the closing <code>&lt;/body&gt;</code> tag of your website.
                                  </p>
+                             </div>
+                         </div>
+
+                         {/* How It Works */}
+                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
+                             <h3 className="text-sm font-semibold text-gray-400 uppercase mb-4">How It Works</h3>
+                             <div className="space-y-4">
+                                 {[
+                                     { step: '1', title: 'Script Loads', desc: 'Browser loads widget.js from our servers' },
+                                     { step: '2', title: 'Initialize', desc: 'Widget sends page URL & agent ID to Insydr' },
+                                     { step: '3', title: 'Validate', desc: 'We verify the domain is allowed' },
+                                     { step: '4', title: 'Track & Chat', desc: 'Widget renders and tracks analytics' },
+                                 ].map((item) => (
+                                     <div key={item.step} className="flex items-start gap-4">
+                                         <div className="w-8 h-8 rounded-full bg-red-600/20 flex items-center justify-center text-red-500 font-bold text-sm shrink-0">
+                                             {item.step}
+                                         </div>
+                                         <div>
+                                             <p className="text-white font-medium">{item.title}</p>
+                                             <p className="text-sm text-gray-400">{item.desc}</p>
+                                         </div>
+                                     </div>
+                                 ))}
                              </div>
                          </div>
                      </motion.div>

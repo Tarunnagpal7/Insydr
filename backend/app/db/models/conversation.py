@@ -16,6 +16,11 @@ class Conversation(UUIDBase, Base):
     user_ip: Mapped[str | None]
     user_agent: Mapped[str | None]
     language: Mapped[str | None]
+    
+    # Website tracking (like Google Analytics)
+    referrer_url: Mapped[str | None]  # The full URL of the page where widget is embedded
+    page_title: Mapped[str | None]    # Title of the page
+    hostname: Mapped[str | None]      # Domain name (e.g., example.com)
 
     meta: Mapped[dict | None] = mapped_column(JSON)
     status: Mapped[str]

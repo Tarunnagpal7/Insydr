@@ -30,7 +30,8 @@ async def create_agent(
             agent_type=agent_in.agent_type,
             configuration=agent_in.configuration,
             behavior_settings=agent_in.behavior_settings,
-            document_ids=agent_in.document_ids
+            document_ids=agent_in.document_ids,
+            allowed_domains=agent_in.allowed_domains
         )
     except Exception as e:
         import traceback
@@ -100,7 +101,8 @@ async def update_agent(
         description=agent_update.description,
         configuration=agent_update.configuration,
         behavior_settings=agent_update.behavior_settings,
-        status=agent_update.status
+        status=agent_update.status,
+        allowed_domains=agent_update.allowed_domains
     )
     return updated_agent
 

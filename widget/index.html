@@ -3,18 +3,68 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Insydr Widget Dev</title>
-    <!-- Mock Agent ID for dev -->
-    <script id="insydr-widget-data" data-agent-id="c02c8109-23cc-44fa-9c15-779217fed827"></script>
-    <script>
-      // Mock the currentScript behavior for dev since standard script src loading is different in module
-      // We manually set the attribute on the script tag that loads main.jsx (which Vite injects)
-      // Actually main.jsx looks for `document.currentScript`. In module type, currentScript is null.
-      // We need a fallback in main.jsx to find the script tag by ID or fallback for dev.
-    </script>
+    <title>Insydr Widget Dev Test</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        background: linear-gradient(145deg, #1a1a2e, #16213e);
+        min-height: 100vh;
+        color: #fff;
+        padding: 40px;
+      }
+      .container { max-width: 800px; margin: 0 auto; }
+      h1 { font-size: 2rem; margin-bottom: 16px; color: #EF4444; }
+      p { color: #9ca3af; margin-bottom: 16px; line-height: 1.6; }
+      .card {
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      code { background: #1a1a1a; padding: 2px 8px; border-radius: 4px; font-size: 0.9em; }
+      .status {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2);
+        color: #4ade80; padding: 8px 16px; border-radius: 50px; font-size: 0.875rem;
+      }
+      .dot { width: 8px; height: 8px; background: #4ade80; border-radius: 50%; animation: pulse 2s infinite; }
+      @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div class="container">
+      <div class="status"><span class="dot"></span> Widget Dev Server Running</div>
+      <h1>🤖 Insydr Widget Test</h1>
+      <p>The chatbot widget should appear in the bottom-right corner.</p>
+      
+      <div class="card">
+        <p><strong>Page URL:</strong> <code id="url"></code></p>
+        <p><strong>Page Title:</strong> <code id="title"></code></p>
+        <p><strong>Agent ID:</strong> <code>1aafb95c-b356-4429-b9b5-cb6c8c97eb4b</code></p>
+      </div>
+      
+      <div class="card">
+        <p>✅ If you see the chat bubble, the widget is working!</p>
+        <p>✅ Click the bubble to open the chat interface.</p>
+        <p>✅ Check the browser console for tracking logs.</p>
+      </div>
+    </div>
+    
+    <script>
+      document.getElementById('url').textContent = window.location.href;
+      document.getElementById('title').textContent = document.title;
+    </script>
+    
+    <!-- This is the magic: set data attributes that main.jsx will find -->
+    <script 
+      id="insydr-widget-script"
+      data-agent-id="1aafb95c-b356-4429-b9b5-cb6c8c97eb4b" 
+      data-api-base="http://127.0.0.1:8000/api/v1"
+    ></script>
+    
+    <!-- Load the widget in dev mode -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

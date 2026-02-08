@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     # OTP Settings
     OTP_EXPIRY_MINUTES: int = 10
     
-    # CORS
-    ALLOWED_ORIGINS: str = "http://localhost:3000"
+    # CORS - Include widget dev server and allow any origin for widget endpoints
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,null"
     
     # App
     APP_NAME: str = "Insydr.AI"

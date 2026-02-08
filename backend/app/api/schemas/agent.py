@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from uuid import UUID
 from datetime import datetime
 
@@ -9,6 +9,7 @@ class AgentBase(BaseModel):
     agent_type: str = "custom"
     configuration: Optional[Dict] = {}
     behavior_settings: Optional[Dict] = {}
+    allowed_domains: Optional[List[str]] = []  # Domains allowed to embed this widget
 
 class AgentCreate(AgentBase):
     document_ids: Optional[list[UUID]] = []
@@ -19,12 +20,14 @@ class AgentUpdate(BaseModel):
     configuration: Optional[Dict] = None
     behavior_settings: Optional[Dict] = None
     status: Optional[str] = None
+    allowed_domains: Optional[List[str]] = None
 
 class AgentResponse(AgentBase):
     id: UUID
     workspace_id: UUID
     status: str
     version: str
+    allowed_domains: Optional[List[str]] = []
     created_at: datetime
     updated_at: datetime
     

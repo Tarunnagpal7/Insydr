@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TechStartup Pro - AI Solutions for Your Business</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            line-height: 1.6;
+        }
+        
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(20px);
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+        
+        .nav-links a {
+            color: #888;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        
+        .nav-links a:hover {
+            color: #fff;
+        }
+        
+        .nav-cta {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .nav-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+        
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 120px 40px 80px;
+            background: radial-gradient(ellipse at top, rgba(102, 126, 234, 0.15) 0%, transparent 50%);
+        }
+        
+        .hero-content {
+            max-width: 800px;
+            text-align: center;
+        }
+        
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            color: #667eea;
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            margin-bottom: 24px;
+        }
+        
+        .hero h1 {
+            font-size: 4rem;
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            background: linear-gradient(180deg, #fff 0%, #888 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .hero p {
+            font-size: 1.25rem;
+            color: #888;
+            margin-bottom: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.2);
+        }
+        
+        /* Features Section */
+        .features {
+            padding: 100px 40px;
+            background: #050505;
+        }
+        
+        .section-title {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .section-title h2 {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+        }
+        
+        .section-title p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        @media (max-width: 900px) {
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+        }
+        
+        .feature-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 40px 30px;
+            transition: all 0.3s;
+        }
+        
+        .feature-card:hover {
+            background: rgba(255,255,255,0.04);
+            border-color: rgba(102, 126, 234, 0.3);
+            transform: translateY(-5px);
+        }
+        
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 24px;
+        }
+        
+        .feature-card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 12px;
+        }
+        
+        .feature-card p {
+            color: #666;
+            font-size: 0.95rem;
+        }
+        
+        /* CTA Section */
+        .cta {
+            padding: 100px 40px;
+            text-align: center;
+            background: radial-gradient(ellipse at bottom, rgba(102, 126, 234, 0.1) 0%, transparent 60%);
+        }
+        
+        .cta h2 {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+        }
+        
+        .cta p {
+            color: #666;
+            margin-bottom: 32px;
+            font-size: 1.1rem;
+        }
+        
+        /* Footer */
+        footer {
+            padding: 40px;
+            text-align: center;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            color: #444;
+            font-size: 0.9rem;
+        }
+        
+        /* Widget Test Banner */
+        .widget-banner {
+            position: fixed;
+            bottom: 80px;
+            left: 20px;
+            background: rgba(102, 126, 234, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            z-index: 999;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .widget-banner strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="logo">TechStartup Pro</div>
+        <ul class="nav-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="#about">About</a></li>
+            <li><a href="#contact">Contact</a></li>
+        </ul>
+        <button class="nav-cta">Get Started</button>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="badge">
+                ✨ New: AI-Powered Analytics Dashboard
+            </div>
+            <h1>Build the Future with AI Technology</h1>
+            <p>
+                Leverage cutting-edge artificial intelligence to transform your business. 
+                Our platform helps you automate, analyze, and accelerate growth.
+            </p>
+            <div class="hero-buttons">
+                <button class="btn-primary">Start Free Trial</button>
+                <button class="btn-secondary">Watch Demo →</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="section-title">
+            <h2>Everything You Need</h2>
+            <p>Powerful features to supercharge your workflow</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🚀</div>
+                <h3>Lightning Fast</h3>
+                <p>Our platform is optimized for speed, ensuring your applications run at peak performance.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3>Enterprise Security</h3>
+                <p>Bank-grade encryption and security protocols to keep your data safe and compliant.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>Advanced Analytics</h3>
+                <p>Get deep insights into your business with our AI-powered analytics dashboard.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <h3>AI Integration</h3>
+                <p>Seamlessly integrate AI capabilities into your existing workflows and applications.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🌐</div>
+                <h3>Global Scale</h3>
+                <p>Deploy your solutions globally with our distributed infrastructure.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💬</div>
+                <h3>24/7 Support</h3>
+                <p>Our AI chatbot and support team are available around the clock to help you.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+        <h2>Ready to Get Started?</h2>
+        <p>Join thousands of companies already using TechStartup Pro</p>
+        <button class="btn-primary">Start Your Free Trial</button>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <p>© 2026 TechStartup Pro. This is a demo website for testing the Insydr chatbot widget.</p>
+    </footer>
+
+    <!-- Widget Test Banner -->
+    <div class="widget-banner">
+        <strong>🧪 Widget Test Mode</strong>
+        Click the chat bubble (bottom-right) →
+    </div>
+
+    <!-- 
+    ╔════════════════════════════════════════════════════════════════╗
+    ║                   INSYDR CHATBOT WIDGET                        ║
+    ║                                                                ║
+    ║  This is the ONLY code needed to add the chatbot!              ║
+    ║  Just copy this script tag to any website.                     ║
+    ╚════════════════════════════════════════════════════════════════╝
+    -->
+    
+    
+    <!-- Widget Script (Built IIFE bundle - works on ANY website) -->
+    <script 
+        src="http://localhost:5173/widget.js"
+        data-agent-id="7e1464be-d1fa-4132-90f6-4788a4b1ece3" 
+        data-api-base="http://127.0.0.1:8000/api/v1"
+    ></script>
+</body>
+</html>
