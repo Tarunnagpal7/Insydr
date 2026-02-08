@@ -7,7 +7,8 @@ import {
   ChatBubbleLeftRightIcon, 
   CpuChipIcon,
   DocumentTextIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  GlobeAltIcon
 } from '@heroicons/react/24/outline';
 import { useAppDispatch, useAppSelector } from '@/src/store/hooks';
 import { fetchAgents, createAgent } from '@/src/store/agent.store';
@@ -33,6 +34,9 @@ export default function AgentsPage() {
   const [existingDocs, setExistingDocs] = useState<Document[]>([]);
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  
+  // Allowed Domains State
+  const [allowedDomains, setAllowedDomains] = useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -72,12 +76,19 @@ export default function AgentsPage() {
          }
       }
 
-      // 2. Create Agent with linked docs
+      // 2. Parse allowed domains
+      const domainsList = allowedDomains
+        .split(/[,\n]/)
+        .map(d => d.trim())
+        .filter(d => d.length > 0);
+
+      // 3. Create Agent with linked docs and allowed domains
       const payload: CreateAgentPayload = {
           name: newAgentData.name || 'New Agent',
           description: newAgentData.description || '',
           agent_type: newAgentData.agent_type || 'custom',
-          document_ids: docIdsToLink
+          document_ids: docIdsToLink,
+          allowed_domains: domainsList
       };
 
       await dispatch(createAgent({ workspaceId, data: payload })).unwrap();
@@ -87,6 +98,7 @@ export default function AgentsPage() {
       setNewAgentData({ name: '', description: '', agent_type: 'custom' });
       setPdfFile(null);
       setSelectedDocIds([]);
+      setAllowedDomains('');
     } catch (error: any) {
       toast.error(error.message || 'Failed to create agent', { id: toastId });
     } finally {
@@ -312,6 +324,24 @@ export default function AgentsPage() {
                         </Tab.Panel>
                     </Tab.Panels>
                 </Tab.Group>
+              </div>
+
+              {/* Allowed Domains Section */}
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1 flex items-center gap-2">
+                  <GlobeAltIcon className="w-4 h-4" />
+                  Allowed Domains
+                </label>
+                <textarea
+                  value={allowedDomains}
+                  onChange={(e) => setAllowedDomains(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-red-500 font-mono text-sm"
+                  placeholder="example.com&#10;app.example.com&#10;localhost:3000"
+                  rows={3}
+                />
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Enter domains that can embed this widget (one per line). Leave empty to allow all domains.
+                </p>
               </div>
             </form>
             </div>

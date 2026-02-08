@@ -6,6 +6,7 @@ from app.api.v1.workspaces import router as workspace_router
 from app.api.v1.api_keys import router as api_key_router
 from app.api.v1.agents import router as agents_router
 from app.api.v1.knowledge import router as knowledge_router
+from app.api.v1.widget import router as widget_router
 
 app = FastAPI(
     title="Insydr.AI Backend",
@@ -13,10 +14,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS middleware
+# CORS middleware - Allow all origins for widget embeds to work on customer sites
+# In production, you may want to restrict non-widget endpoints
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS.split(","),
+    allow_origins=["*"],  # Allow all origins for widget embedding
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,6 +30,7 @@ app.include_router(workspace_router, prefix="/api/v1")
 app.include_router(api_key_router, prefix="/api/v1")
 app.include_router(agents_router, prefix="/api/v1/agents", tags=["Agents"])
 app.include_router(knowledge_router, prefix="/api/v1/knowledge", tags=["Knowledge"])
+app.include_router(widget_router, prefix="/api/v1/widget", tags=["Widget (Public)"])
 
 
 @app.get("/health")

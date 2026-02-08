@@ -22,6 +22,9 @@ class Agent(UUIDBase, Base):
     behavior_settings: Mapped[dict | None] = mapped_column(JSON)
     response_config: Mapped[dict | None] = mapped_column(JSON)
     conversation_rules: Mapped[dict | None] = mapped_column(JSON)
+    
+    # Domain whitelisting for widget embedding
+    allowed_domains: Mapped[list | None] = mapped_column(JSON, default=list)
 
     greeting_message: Mapped[str | None]
     fallback_message: Mapped[str | None]

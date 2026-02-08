@@ -1,0 +1,12 @@
+{
+  "name": "demo-site",
+  "version": "1.0.0",
+  "description": "Demo website to test Insydr chatbot widget integration",
+  "scripts": {
+    "start": "npx serve . -p 3001 -C",
+    "dev": "npx serve . -p 3001 -C"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
