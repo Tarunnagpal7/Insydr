@@ -115,104 +115,466 @@ const StatCard = ({
   );
 };
 
-// Simple Bar Chart Component
-const BarChartSimple = ({ 
-  data, 
-  dataKey, 
-  color = '#ef4444',
-  height = 200 
+// Beautiful SVG Area Chart for Conversations
+const ConversationsChart = ({ 
+  data,
+  height = 220 
 }: { 
-  data: any[]; 
-  dataKey: string; 
-  color?: string;
+  data: TimeSeriesPoint[];
   height?: number;
 }) => {
-  if (!data.length) return <div className="h-full flex items-center justify-center text-gray-500">No data</div>;
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   
-  const maxValue = Math.max(...data.map(d => d[dataKey]));
+  if (!data.length) {
+    return (
+      <div className="h-full flex items-center justify-center text-gray-500">
+        <div className="text-center">
+          <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p className="text-sm">No conversation data</p>
+        </div>
+      </div>
+    );
+  }
   
-  return (
-    <div className="flex items-end gap-1 h-full" style={{ height }}>
-      {data.map((item, idx) => {
-        const heightPercent = maxValue > 0 ? (item[dataKey] / maxValue) * 100 : 0;
-        return (
-          <div 
-            key={idx} 
-            className="flex-1 flex flex-col items-center gap-1"
-          >
-            <div 
-              className="w-full rounded-t transition-all hover:opacity-80 cursor-pointer"
-              style={{ 
-                height: `${heightPercent}%`, 
-                backgroundColor: color,
-                minHeight: item[dataKey] > 0 ? '4px' : '0'
-              }}
-              title={`${item.date || item.hour}: ${item[dataKey]}`}
-            />
-            {data.length <= 14 && (
-              <span className="text-[10px] text-gray-500 truncate w-full text-center">
-                {item.date ? new Date(item.date).getDate() : item.hour}
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
+  const maxValue = Math.max(...data.map(d => d.conversations), 1);
+  const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+  const chartWidth = 100; // Percentage based
+  const chartHeight = height - padding.top - padding.bottom;
+  
+  // Generate smooth curve path
+  const generatePath = (points: { x: number; y: number }[], close: boolean = false) => {
+    if (points.length < 2) return '';
+    
+    let path = `M ${points[0].x} ${points[0].y}`;
+    
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const cp1x = prev.x + (curr.x - prev.x) / 3;
+      const cp2x = prev.x + (2 * (curr.x - prev.x)) / 3;
+      path += ` C ${cp1x} ${prev.y}, ${cp2x} ${curr.y}, ${curr.x} ${curr.y}`;
+    }
+    
+    if (close) {
+      path += ` L ${points[points.length - 1].x} ${chartHeight} L ${points[0].x} ${chartHeight} Z`;
+    }
+    
+    return path;
+  };
 
-// Area Chart Component (simplified)
-const AreaChartSimple = ({ 
-  data, 
-  lines,
-  height = 200 
-}: { 
-  data: any[]; 
-  lines: { key: string; color: string; label: string }[];
-  height?: number;
-}) => {
-  if (!data.length) return <div className="h-full flex items-center justify-center text-gray-500">No data</div>;
-  
-  const allValues = lines.flatMap(line => data.map(d => d[line.key]));
-  const maxValue = Math.max(...allValues);
-  
+  const points = data.map((d, i) => ({
+    x: (i / (data.length - 1)) * 100,
+    y: chartHeight - (d.conversations / maxValue) * chartHeight
+  }));
+
+  const linePath = generatePath(points);
+  const areaPath = generatePath(points, true);
+
+  // Y-axis labels
+  const yLabels = [0, Math.round(maxValue / 2), maxValue];
+
   return (
     <div className="relative" style={{ height }}>
-      {/* Legend */}
-      <div className="absolute top-0 right-0 flex gap-4">
-        {lines.map(line => (
-          <div key={line.key} className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: line.color }} />
-            <span className="text-xs text-gray-400">{line.label}</span>
-          </div>
+      {/* Y-axis labels */}
+      <div className="absolute left-0 top-5 bottom-10 w-10 flex flex-col justify-between text-right pr-2">
+        {yLabels.reverse().map((val, i) => (
+          <span key={i} className="text-[10px] text-gray-500">{val}</span>
         ))}
       </div>
       
       {/* Chart */}
-      <div className="flex items-end gap-1 h-full pt-8">
-        {data.map((item, idx) => (
-          <div key={idx} className="flex-1 flex flex-col gap-0.5">
-            {lines.map(line => {
-              const heightPercent = maxValue > 0 ? (item[line.key] / maxValue) * 100 : 0;
-              return (
-                <div
-                  key={line.key}
-                  className="w-full rounded-sm transition-all hover:opacity-80"
-                  style={{ 
-                    height: `${heightPercent}%`, 
-                    backgroundColor: line.color,
-                    minHeight: item[line.key] > 0 ? '2px' : '0'
-                  }}
-                  title={`${line.label}: ${item[line.key]}`}
+      <div className="absolute left-12 right-0 top-0 bottom-0">
+        <svg width="100%" height="100%" viewBox={`0 0 100 ${height}`} preserveAspectRatio="none">
+          <defs>
+            {/* Gradient for area fill */}
+            <linearGradient id="conversationsGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#ef4444" stopOpacity="0.4" />
+              <stop offset="50%" stopColor="#ef4444" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="#ef4444" stopOpacity="0" />
+            </linearGradient>
+            {/* Glow filter */}
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          
+          {/* Grid lines */}
+          <g className="opacity-20">
+            {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
+              <line
+                key={i}
+                x1="0"
+                y1={padding.top + chartHeight * ratio}
+                x2="100"
+                y2={padding.top + chartHeight * ratio}
+                stroke="white"
+                strokeDasharray="2,4"
+              />
+            ))}
+          </g>
+          
+          {/* Area fill */}
+          <path
+            d={areaPath}
+            fill="url(#conversationsGradient)"
+            transform={`translate(0, ${padding.top})`}
+          />
+          
+          {/* Line */}
+          <path
+            d={linePath}
+            fill="none"
+            stroke="#ef4444"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            filter="url(#glow)"
+            transform={`translate(0, ${padding.top})`}
+          />
+          
+          {/* Data points */}
+          {points.map((point, i) => (
+            <g key={i} transform={`translate(0, ${padding.top})`}>
+              <circle
+                cx={point.x}
+                cy={point.y}
+                r={hoveredIndex === i ? 5 : 3}
+                fill="#ef4444"
+                stroke="#1a1a1a"
+                strokeWidth="2"
+                className="cursor-pointer transition-all duration-150"
+                onMouseEnter={() => setHoveredIndex(i)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              />
+              {/* Outer glow on hover */}
+              {hoveredIndex === i && (
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r="8"
+                  fill="none"
+                  stroke="#ef4444"
+                  strokeWidth="1"
+                  opacity="0.5"
                 />
-              );
-            })}
-          </div>
-        ))}
+              )}
+            </g>
+          ))}
+        </svg>
+        
+        {/* Tooltip */}
+        {hoveredIndex !== null && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute bg-zinc-800 border border-red-500/30 rounded-lg px-3 py-2 shadow-xl pointer-events-none z-10"
+            style={{
+              left: `${points[hoveredIndex].x}%`,
+              top: points[hoveredIndex].y + padding.top - 50,
+              transform: 'translateX(-50%)'
+            }}
+          >
+            <p className="text-xs text-gray-400">{new Date(data[hoveredIndex].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+            <p className="text-sm font-bold text-white">{data[hoveredIndex].conversations} <span className="text-red-400 font-normal">conversations</span></p>
+          </motion.div>
+        )}
+        
+        {/* X-axis labels */}
+        <div className="absolute bottom-0 left-0 right-0 flex justify-between px-1">
+          {data.length <= 14 ? (
+            data.map((d, i) => (
+              <span key={i} className="text-[10px] text-gray-500">
+                {new Date(d.date).getDate()}
+              </span>
+            ))
+          ) : (
+            <>
+              <span className="text-[10px] text-gray-500">
+                {new Date(data[0].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+              <span className="text-[10px] text-gray-500">
+                {new Date(data[Math.floor(data.length / 2)].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+              <span className="text-[10px] text-gray-500">
+                {new Date(data[data.length - 1].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+      
+      {/* Summary Stats */}
+      <div className="absolute top-0 right-0 flex gap-4">
+        <div className="text-right">
+          <p className="text-[10px] text-gray-500 uppercase">Total</p>
+          <p className="text-sm font-bold text-white">{data.reduce((sum, d) => sum + d.conversations, 0)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-gray-500 uppercase">Avg/Day</p>
+          <p className="text-sm font-bold text-white">{Math.round(data.reduce((sum, d) => sum + d.conversations, 0) / data.length)}</p>
+        </div>
       </div>
     </div>
   );
 };
+
+// Beautiful SVG Stacked Area Chart for Messages
+const MessagesChart = ({ 
+  data,
+  height = 220 
+}: { 
+  data: MessageTimeSeriesPoint[];
+  height?: number;
+}) => {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  
+  if (!data.length) {
+    return (
+      <div className="h-full flex items-center justify-center text-gray-500">
+        <div className="text-center">
+          <Zap className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p className="text-sm">No message data</p>
+        </div>
+      </div>
+    );
+  }
+  
+  const maxValue = Math.max(...data.map(d => d.total), 1);
+  const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+  const chartHeight = height - padding.top - padding.bottom;
+  
+  // Generate smooth curve path
+  const generatePath = (points: { x: number; y: number }[], close: boolean = false, baseY?: number) => {
+    if (points.length < 2) return '';
+    
+    let path = `M ${points[0].x} ${points[0].y}`;
+    
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const cp1x = prev.x + (curr.x - prev.x) / 3;
+      const cp2x = prev.x + (2 * (curr.x - prev.x)) / 3;
+      path += ` C ${cp1x} ${prev.y}, ${cp2x} ${curr.y}, ${curr.x} ${curr.y}`;
+    }
+    
+    if (close && baseY !== undefined) {
+      path += ` L ${points[points.length - 1].x} ${baseY} L ${points[0].x} ${baseY} Z`;
+    }
+    
+    return path;
+  };
+
+  // Calculate points for both lines
+  const userPoints = data.map((d, i) => ({
+    x: (i / (data.length - 1)) * 100,
+    y: chartHeight - (d.user_messages / maxValue) * chartHeight
+  }));
+  
+  const botPoints = data.map((d, i) => ({
+    x: (i / (data.length - 1)) * 100,
+    y: chartHeight - (d.bot_messages / maxValue) * chartHeight
+  }));
+  
+  const totalPoints = data.map((d, i) => ({
+    x: (i / (data.length - 1)) * 100,
+    y: chartHeight - (d.total / maxValue) * chartHeight
+  }));
+
+  // Y-axis labels
+  const yLabels = [0, Math.round(maxValue / 2), maxValue];
+
+  // Calculate totals for summary
+  const totalUser = data.reduce((sum, d) => sum + d.user_messages, 0);
+  const totalBot = data.reduce((sum, d) => sum + d.bot_messages, 0);
+
+  return (
+    <div className="relative" style={{ height }}>
+      {/* Legend */}
+      <div className="absolute top-0 right-0 flex gap-4">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-purple-500" />
+          <span className="text-xs text-gray-400">User ({totalUser})</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-500" />
+          <span className="text-xs text-gray-400">Bot ({totalBot})</span>
+        </div>
+      </div>
+      
+      {/* Y-axis labels */}
+      <div className="absolute left-0 top-5 bottom-10 w-10 flex flex-col justify-between text-right pr-2">
+        {yLabels.reverse().map((val, i) => (
+          <span key={i} className="text-[10px] text-gray-500">{val}</span>
+        ))}
+      </div>
+      
+      {/* Chart */}
+      <div className="absolute left-12 right-0 top-0 bottom-0">
+        <svg width="100%" height="100%" viewBox={`0 0 100 ${height}`} preserveAspectRatio="none">
+          <defs>
+            {/* Purple gradient for user messages */}
+            <linearGradient id="userGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
+            </linearGradient>
+            {/* Red gradient for bot messages */}
+            <linearGradient id="botGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#ef4444" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#ef4444" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          
+          {/* Grid lines */}
+          <g className="opacity-20">
+            {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
+              <line
+                key={i}
+                x1="0"
+                y1={padding.top + chartHeight * ratio}
+                x2="100"
+                y2={padding.top + chartHeight * ratio}
+                stroke="white"
+                strokeDasharray="2,4"
+              />
+            ))}
+          </g>
+          
+          {/* User area fill */}
+          <path
+            d={generatePath(userPoints, true, chartHeight)}
+            fill="url(#userGradient)"
+            transform={`translate(0, ${padding.top})`}
+          />
+          
+          {/* Bot area fill */}
+          <path
+            d={generatePath(botPoints, true, chartHeight)}
+            fill="url(#botGradient)"
+            transform={`translate(0, ${padding.top})`}
+          />
+          
+          {/* User line */}
+          <path
+            d={generatePath(userPoints)}
+            fill="none"
+            stroke="#8b5cf6"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            transform={`translate(0, ${padding.top})`}
+          />
+          
+          {/* Bot line */}
+          <path
+            d={generatePath(botPoints)}
+            fill="none"
+            stroke="#ef4444"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            transform={`translate(0, ${padding.top})`}
+          />
+          
+          {/* Interactive hover areas */}
+          {data.map((d, i) => (
+            <rect
+              key={i}
+              x={(i / data.length) * 100}
+              y={padding.top}
+              width={100 / data.length}
+              height={chartHeight}
+              fill="transparent"
+              className="cursor-pointer"
+              onMouseEnter={() => setHoveredIndex(i)}
+              onMouseLeave={() => setHoveredIndex(null)}
+            />
+          ))}
+          
+          {/* Hover line */}
+          {hoveredIndex !== null && (
+            <line
+              x1={userPoints[hoveredIndex].x}
+              y1={padding.top}
+              x2={userPoints[hoveredIndex].x}
+              y2={padding.top + chartHeight}
+              stroke="white"
+              strokeWidth="1"
+              strokeDasharray="3,3"
+              opacity="0.5"
+            />
+          )}
+          
+          {/* Data points on hover */}
+          {hoveredIndex !== null && (
+            <g transform={`translate(0, ${padding.top})`}>
+              <circle cx={userPoints[hoveredIndex].x} cy={userPoints[hoveredIndex].y} r="5" fill="#8b5cf6" stroke="#1a1a1a" strokeWidth="2" />
+              <circle cx={botPoints[hoveredIndex].x} cy={botPoints[hoveredIndex].y} r="5" fill="#ef4444" stroke="#1a1a1a" strokeWidth="2" />
+            </g>
+          )}
+        </svg>
+        
+        {/* Tooltip */}
+        {hoveredIndex !== null && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute bg-zinc-800/95 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-3 shadow-2xl pointer-events-none z-10"
+            style={{
+              left: `${userPoints[hoveredIndex].x}%`,
+              top: Math.min(userPoints[hoveredIndex].y, botPoints[hoveredIndex].y) + padding.top - 80,
+              transform: 'translateX(-50%)'
+            }}
+          >
+            <p className="text-xs text-gray-400 mb-2 border-b border-white/10 pb-2">
+              {new Date(data[hoveredIndex].date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </p>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-purple-500" />
+                <span className="text-sm text-white">User: <span className="font-bold">{data[hoveredIndex].user_messages}</span></span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="text-sm text-white">Bot: <span className="font-bold">{data[hoveredIndex].bot_messages}</span></span>
+              </div>
+              <div className="flex items-center gap-2 pt-1 border-t border-white/10 mt-1">
+                <span className="text-xs text-gray-400">Total: <span className="text-white font-bold">{data[hoveredIndex].total}</span></span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+        
+        {/* X-axis labels */}
+        <div className="absolute bottom-0 left-0 right-0 flex justify-between px-1">
+          {data.length <= 14 ? (
+            data.map((d, i) => (
+              <span key={i} className="text-[10px] text-gray-500">
+                {new Date(d.date).getDate()}
+              </span>
+            ))
+          ) : (
+            <>
+              <span className="text-[10px] text-gray-500">
+                {new Date(data[0].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+              <span className="text-[10px] text-gray-500">
+                {new Date(data[Math.floor(data.length / 2)].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+              <span className="text-[10px] text-gray-500">
+                {new Date(data[data.length - 1].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 // Horizontal Bar Chart for Agent Performance
 const HorizontalBarChart = ({ data }: { data: AgentPerformance[] }) => {
@@ -524,11 +886,10 @@ export default function AnalyticsPage() {
             <TrendingUp className="w-5 h-5 text-red-500" />
             Conversations Over Time
           </h3>
-          <div className="h-[200px]">
-            <BarChartSimple 
-              data={conversationsData} 
-              dataKey="conversations" 
-              color="#ef4444"
+          <div className="h-[220px]">
+            <ConversationsChart 
+              data={conversationsData}
+              height={220}
             />
           </div>
         </motion.div>
@@ -544,13 +905,10 @@ export default function AnalyticsPage() {
             <MessageSquare className="w-5 h-5 text-purple-500" />
             Messages Over Time
           </h3>
-          <div className="h-[200px]">
-            <AreaChartSimple 
+          <div className="h-[220px]">
+            <MessagesChart 
               data={messagesData}
-              lines={[
-                { key: 'user_messages', color: '#8b5cf6', label: 'User' },
-                { key: 'bot_messages', color: '#ef4444', label: 'Bot' }
-              ]}
+              height={220}
             />
           </div>
         </motion.div>

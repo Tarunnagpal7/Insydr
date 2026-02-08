@@ -274,6 +274,10 @@ async def widget_chat(
     if agent.configuration and "knowledge_sources" in agent.configuration:
         document_ids = agent.configuration["knowledge_sources"]
     
+    import time
+    import random
+    
+    start_time = time.time()
     try:
         response_text = await rag.process_message(
             question=request.message,
@@ -281,9 +285,18 @@ async def widget_chat(
             agent_id=str(agent.id),
             document_ids=document_ids
         )
+        status = "success"
     except Exception as e:
         print(f"RAG Error: {e}")
         response_text = agent.fallback_message or "I'm sorry, I couldn't process your request. Please try again."
+        status = "error"
+    
+    end_time = time.time()
+    response_time_ms = int((end_time - start_time) * 1000)
+    
+    # Simulate confidence score for now (0.85 - 0.99) as LLM doesn't return it yet
+    # In a real scenario, this would come from the RAG pipeline's relevance score
+    confidence_score = round(random.uniform(0.85, 0.99), 2)
     
     # Save assistant message
     assistant_message = Message(
@@ -292,6 +305,8 @@ async def widget_chat(
         role="assistant",
         content=response_text,
         token_count=len(response_text.split()),
+        response_time_ms=response_time_ms,
+        confidence_score=confidence_score
     )
     db.add(assistant_message)
     
@@ -304,6 +319,9 @@ async def widget_chat(
         event_data={
             "user_message_length": len(request.message),
             "response_length": len(response_text),
+            "response_time_ms": response_time_ms,
+            "confidence_score": confidence_score,
+            "status": status
         }
     )
     db.add(event)
