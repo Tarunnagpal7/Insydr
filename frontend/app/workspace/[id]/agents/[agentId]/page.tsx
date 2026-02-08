@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Agent, getAgent, updateAgent, chatWithAgent } from '@/src/features/agents/agents.service';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Send, Sparkles, Bot, Save, Code, Settings, MessageSquare, Layout, Palette, Zap } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, Bot, Save, Code, Settings, MessageSquare, Layout, Palette, Zap, Copy, Globe, Shield, CheckCircle, Terminal, ExternalLink, Layers } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Tab } from '@headlessui/react';
 import classNames from 'classnames';
@@ -223,71 +223,75 @@ export default function AgentDetailsPage() {
   if (!agent) return null;
 
   return (
-    <div className="h-[calc(100vh-80px)] flex flex-col gap-4 overflow-hidden">
-        {/* Header */}
-         <div className="flex items-center justify-between shrink-0">
-             <div className="flex items-center gap-4">
-                <button 
-                    onClick={() => router.back()}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-white"
-                >
-                    <ArrowLeft className="w-5 h-5" />
-                </button>
-                <div>
-                    <h1 className="text-xl font-bold text-white flex items-center gap-2">
-                        {agent.name}
-                        <span className={classNames(
-                            "px-2 py-0.5 rounded-full text-xs border uppercase",
-                            agent.status === 'active' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-gray-500/10 border-gray-500/20 text-gray-500' 
-                        )}>{agent.status}</span>
-                    </h1>
-                     <p className="text-xs text-gray-400 mt-0.5">Edit, customize, and integrate your agent.</p>
-                </div>
-             </div>
-             {hasUnsavedChanges && (
-                 <motion.button
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    onClick={handleSaveSettings}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg shadow-lg shadow-red-900/20 text-sm font-medium transition-colors"
-                 >
-                     <Save className="w-4 h-4" />
-                     Save Changes
-                 </motion.button>
-             )}
-         </div>
-
-         {/* Tabs */}
-         <Tab.Group>
-            <div className="border-b border-white/10">
-                <Tab.List className="flex space-x-6">
-                    {['Playground', 'Customization', 'Integration'].map((tab) => (
-                        <Tab
-                            key={tab}
-                            className={({ selected }) =>
-                                classNames(
-                                    'py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none',
-                                    selected
-                                        ? 'border-red-500 text-white'
-                                        : 'border-transparent text-gray-400 hover:text-gray-300'
-                                )
-                            }
+    <div className="h-[calc(100vh-4rem)] flex flex-col overflow-hidden -m-6">
+        <Tab.Group>
+            {/* Fixed Header with Tabs */}
+            <div className="shrink-0 bg-zinc-950/95 backdrop-blur-md border-b border-white/5 px-6 pt-6 pb-0">
+                <div className="flex items-center justify-between pb-4">
+                    <div className="flex items-center gap-4">
+                        <button 
+                            onClick={() => router.back()}
+                            className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-white"
                         >
-                            {tab}
-                        </Tab>
-                    ))}
-                </Tab.List>
+                            <ArrowLeft className="w-5 h-5" />
+                        </button>
+                        <div>
+                            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+                                {agent.name}
+                                <span className={classNames(
+                                    "px-2 py-0.5 rounded-full text-xs border uppercase",
+                                    agent.status === 'active' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-gray-500/10 border-gray-500/20 text-gray-500' 
+                                )}>{agent.status}</span>
+                            </h1>
+                            <p className="text-xs text-gray-400 mt-0.5">Edit, customize, and integrate your agent.</p>
+                        </div>
+                    </div>
+                    {hasUnsavedChanges && (
+                        <motion.button
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            onClick={handleSaveSettings}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg shadow-lg shadow-red-900/20 text-sm font-medium transition-colors"
+                        >
+                            <Save className="w-4 h-4" />
+                            Save Changes
+                        </motion.button>
+                    )}
+                </div>
+
+                {/* Tabs */}
+                <div className="border-b border-white/10">
+                    <Tab.List className="flex space-x-6">
+                        {['Playground', 'Customization', 'Integration'].map((tab) => (
+                            <Tab
+                                key={tab}
+                                className={({ selected }) =>
+                                    classNames(
+                                        'py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none',
+                                        selected
+                                            ? 'border-red-500 text-white'
+                                            : 'border-transparent text-gray-400 hover:text-gray-300'
+                                    )
+                                }
+                            >
+                                {tab}
+                            </Tab>
+                        ))}
+                    </Tab.List>
+                </div>
             </div>
 
-            <Tab.Panels className="flex-1 overflow-hidden">
-                {/* 1. Playground Panel */}
-                <Tab.Panel className="h-full flex gap-6 pt-2 focus:outline-none">
-                    <motion.div 
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                        className="flex-1 flex gap-6 overflow-hidden h-full"
-                    >
+            {/* Tab Content - Full height scrollable area */}
+            <div className="h-full flex-1 min-h-0 ">
+                <Tab.Panels className="h-full">
+                    {/* 1. Playground Panel */}
+                    <Tab.Panel className="h-full flex gap-6 p-6 focus:outline-none">
+                        <motion.div 
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                            className="flex-1 flex gap-6 h-full"
+                        >
                          {/* Left Info */}
-                         <div className="w-1/3 bg-zinc-900 border border-white/10 rounded-2xl p-6 flex flex-col gap-6 overflow-y-auto">
+                         <div className="w-1/3 bg-zinc-900 border border-white/10 rounded-2xl p-6 flex flex-col  gap-6 overflow-y-auto">
                             <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-4">
                                 <div className="flex items-center gap-3">
                                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center">
@@ -377,10 +381,10 @@ export default function AgentDetailsPage() {
                 </Tab.Panel>
 
                 {/* 2. Customization Panel */}
-                <Tab.Panel className="h-full pt-4 focus:outline-none overflow-y-auto">
-                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-6 h-full">
+                <Tab.Panel className="h-full p-6 focus:outline-none overflow-y-auto">
+                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-6 min-h-full">
                         {/* Settings Form */}
-                        <div className="w-1/3 space-y-6 overflow-y-auto pb-20 pr-2">
+                        <div className="w-1/3 space-y-6 pb-20 pr-2">
                              
                              {/* Section: Branding */}
                              <div className="space-y-4">
@@ -502,102 +506,201 @@ export default function AgentDetailsPage() {
                      </motion.div>
                 </Tab.Panel>
 
-                {/* 3. Integration Panel */}
-                <Tab.Panel className="h-full pt-4 focus:outline-none overflow-y-auto">
-                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-3xl mx-auto space-y-8 pb-8">
-                         <div className="text-center space-y-2">
-                             <div className="w-16 h-16 bg-red-600/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                                 <Code className="w-8 h-8 text-red-500" />
-                             </div>
-                             <h2 className="text-2xl font-bold text-white">Integrate Agent</h2>
-                             <p className="text-gray-400">Add this agent to your website in less than 2 minutes.</p>
-                         </div>
-
-                         {/* Allowed Domains Info */}
-                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
-                             <h3 className="text-sm font-semibold text-gray-400 uppercase mb-3 flex items-center gap-2">
-                                 <Settings className="w-4 h-4" /> Allowed Domains
-                             </h3>
-                             {agent.allowed_domains && agent.allowed_domains.length > 0 ? (
-                                 <div className="space-y-2">
-                                     <p className="text-sm text-gray-300 mb-3">This widget will only work on these domains:</p>
-                                     <div className="flex flex-wrap gap-2">
-                                         {agent.allowed_domains.map((domain, idx) => (
-                                             <span key={idx} className="px-3 py-1 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full text-sm font-mono">
-                                                 {domain}
-                                             </span>
-                                         ))}
-                                     </div>
-                                 </div>
-                             ) : (
-                                 <div className="flex items-center gap-3 p-4 bg-yellow-900/10 border border-yellow-900/20 rounded-xl">
-                                     <Zap className="w-5 h-5 text-yellow-500 shrink-0" />
-                                     <p className="text-sm text-yellow-400">
-                                         <strong>Warning:</strong> No domain restrictions set. This widget can be embedded on any website. Configure allowed domains in agent settings for security.
-                                     </p>
-                                 </div>
-                             )}
-                         </div>
-
-                         {/* Embed Code */}
-                         <div className="bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden">
-                             <div className="px-6 py-4 border-b border-white/10 bg-black/20 flex items-center justify-between">
-                                 <span className="text-sm font-mono text-gray-400">Step 1: Copy Embed Code</span>
-                                 <button 
-                                    onClick={() => {
-                                        const code = `<script src="http://localhost:5173/widget.js" data-agent-id="${agentId}" data-api-base="http://localhost:8000/api/v1" defer></script>`;
-                                        navigator.clipboard.writeText(code);
-                                        toast.success("Copied to clipboard");
-                                    }}
-                                    className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded transition-colors"
-                                 >
-                                     Copy Code
-                                 </button>
-                             </div>
-                             <div className="p-6 bg-black/40">
-                                 <pre className="font-mono text-sm text-green-400 whitespace-pre-wrap break-all">
-{`<script 
-  src="http://localhost:5173/widget.js" 
-  data-agent-id="${agentId}" 
-  data-api-base="http://localhost:8000/api/v1"
-  defer
-></script>`}
-                                 </pre>
-                             </div>
-                             <div className="px-6 py-4 bg-yellow-900/10 border-t border-yellow-900/20">
-                                 <p className="text-xs text-yellow-500 flex items-center gap-2">
-                                     <Zap className="w-4 h-4" />
-                                     Paste this code before the closing <code>&lt;/body&gt;</code> tag of your website.
-                                 </p>
-                             </div>
-                         </div>
-
-                         {/* How It Works */}
-                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
-                             <h3 className="text-sm font-semibold text-gray-400 uppercase mb-4">How It Works</h3>
-                             <div className="space-y-4">
-                                 {[
-                                     { step: '1', title: 'Script Loads', desc: 'Browser loads widget.js from our servers' },
-                                     { step: '2', title: 'Initialize', desc: 'Widget sends page URL & agent ID to Insydr' },
-                                     { step: '3', title: 'Validate', desc: 'We verify the domain is allowed' },
-                                     { step: '4', title: 'Track & Chat', desc: 'Widget renders and tracks analytics' },
-                                 ].map((item) => (
-                                     <div key={item.step} className="flex items-start gap-4">
-                                         <div className="w-8 h-8 rounded-full bg-red-600/20 flex items-center justify-center text-red-500 font-bold text-sm shrink-0">
-                                             {item.step}
+                {/* 3. Integration Panel - Premium Redesign */}
+                <Tab.Panel className="h-full p-6 focus:outline-none overflow-y-auto">
+                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-6 pb-8">
+                         
+                         {/* Left Column - Main Content */}
+                         <div className="flex-1 space-y-6">
+                             {/* Hero Section */}
+                             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-900/30 via-zinc-900 to-zinc-900 border border-red-500/20 p-8">
+                                 <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                                 <div className="relative">
+                                     <div className="flex items-center gap-4 mb-4">
+                                         <div className="w-14 h-14 bg-gradient-to-br from-red-500 to-red-700 rounded-2xl flex items-center justify-center shadow-lg shadow-red-900/30">
+                                             <Code className="w-7 h-7 text-white" />
                                          </div>
                                          <div>
-                                             <p className="text-white font-medium">{item.title}</p>
-                                             <p className="text-sm text-gray-400">{item.desc}</p>
+                                             <h2 className="text-2xl font-bold text-white">Integrate Your Agent</h2>
+                                             <p className="text-gray-400">Add this AI agent to your website with one line of code</p>
                                          </div>
                                      </div>
-                                 ))}
+                                     <div className="flex items-center gap-6 mt-6">
+                                         <div className="flex items-center gap-2 text-sm text-gray-400">
+                                             <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                             <span>No coding required</span>
+                                         </div>
+                                         <div className="flex items-center gap-2 text-sm text-gray-400">
+                                             <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                             <span>Works instantly</span>
+                                         </div>
+                                         <div className="flex items-center gap-2 text-sm text-gray-400">
+                                             <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                             <span>Fully customizable</span>
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+
+                             {/* Embed Code Section */}
+                             <div className="bg-zinc-900/80 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
+                                 <div className="px-5 py-4 border-b border-white/10 bg-black/30 flex items-center justify-between">
+                                     <div className="flex items-center gap-3">
+                                         <div className="w-8 h-8 bg-red-500/20 rounded-lg flex items-center justify-center">
+                                             <Terminal className="w-4 h-4 text-red-400" />
+                                         </div>
+                                         <div>
+                                             <span className="text-sm font-semibold text-white">Embed Code</span>
+                                             <p className="text-xs text-gray-500">Copy and paste into your website</p>
+                                         </div>
+                                     </div>
+                                     <button 
+                                        onClick={() => {
+                                            const code = `<script src="http://localhost:5173/widget.js" data-agent-id="${agentId}" data-api-base="http://localhost:8000/api/v1" defer></script>`;
+                                            navigator.clipboard.writeText(code);
+                                            toast.success("Copied to clipboard!");
+                                        }}
+                                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-all shadow-lg shadow-red-900/20 hover:shadow-red-900/30"
+                                     >
+                                         <Copy className="w-4 h-4" />
+                                         Copy Code
+                                     </button>
+                                 </div>
+                                 <div className="p-5 bg-black/60 font-mono text-sm">
+                                     <div className="flex items-start gap-3">
+                                         <span className="text-gray-600 select-none">1</span>
+                                         <pre className="text-gray-300 whitespace-pre-wrap break-all">
+                                             <span className="text-purple-400">&lt;script</span>{'\n'}
+                                             <span className="text-cyan-400 ml-4">src</span>=<span className="text-emerald-400">"http://localhost:5173/widget.js"</span>{'\n'}
+                                             <span className="text-cyan-400 ml-4">data-agent-id</span>=<span className="text-emerald-400">"{agentId}"</span>{'\n'}
+                                             <span className="text-cyan-400 ml-4">data-api-base</span>=<span className="text-emerald-400">"http://localhost:8000/api/v1"</span>{'\n'}
+                                             <span className="text-cyan-400 ml-4">defer</span>{'\n'}
+                                             <span className="text-purple-400">&gt;&lt;/script&gt;</span>
+                                         </pre>
+                                     </div>
+                                 </div>
+                                 <div className="px-5 py-3 border-t border-white/5 bg-zinc-900/50 flex items-center gap-2 text-xs text-gray-500">
+                                     <Zap className="w-3.5 h-3.5 text-yellow-500" />
+                                     Paste this before the closing <code className="px-1.5 py-0.5 bg-white/5 rounded text-gray-400">&lt;/body&gt;</code> tag
+                                 </div>
+                             </div>
+
+                             {/* Security / Domain Section */}
+                             <div className="bg-zinc-900/80 backdrop-blur-sm border border-white/10 rounded-2xl p-5">
+                                 <div className="flex items-center gap-3 mb-4">
+                                     <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+                                         <Shield className="w-4 h-4 text-emerald-400" />
+                                     </div>
+                                     <div>
+                                         <h3 className="text-sm font-semibold text-white">Domain Security</h3>
+                                         <p className="text-xs text-gray-500">Control where your widget can be embedded</p>
+                                     </div>
+                                 </div>
+                                 
+                                 {agent.allowed_domains && agent.allowed_domains.length > 0 ? (
+                                     <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
+                                         <div className="flex items-center gap-2 mb-3">
+                                             <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                             <span className="text-sm text-emerald-400 font-medium">Domain restrictions enabled</span>
+                                         </div>
+                                         <div className="flex flex-wrap gap-2">
+                                             {agent.allowed_domains.map((domain, idx) => (
+                                                 <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-sm font-mono">
+                                                     <Globe className="w-3.5 h-3.5" />
+                                                     {domain}
+                                                 </span>
+                                             ))}
+                                         </div>
+                                     </div>
+                                 ) : (
+                                     <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+                                         <div className="flex items-start gap-3">
+                                             <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center shrink-0">
+                                                 <Zap className="w-4 h-4 text-amber-500" />
+                                             </div>
+                                             <div>
+                                                 <p className="text-sm text-amber-400 font-medium">No domain restrictions</p>
+                                                 <p className="text-xs text-gray-400 mt-1">This widget can be embedded on any website. Configure allowed domains in agent settings for enhanced security.</p>
+                                             </div>
+                                         </div>
+                                     </div>
+                                 )}
                              </div>
                          </div>
+
+                         {/* Right Column - Quick Info */}
+                         <div className="w-80 space-y-6">
+                             {/* Agent ID Card */}
+                             <div className="bg-zinc-900/80 backdrop-blur-sm border border-white/10 rounded-2xl p-5">
+                                 <div className="flex items-center gap-3 mb-4">
+                                     <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                                         <Layers className="w-4 h-4 text-purple-400" />
+                                     </div>
+                                     <span className="text-sm font-semibold text-white">Agent Details</span>
+                                 </div>
+                                 <div className="space-y-3">
+                                     <div className="p-3 bg-black/40 rounded-xl border border-white/5">
+                                         <label className="text-[10px] text-gray-500 uppercase font-medium">Agent ID</label>
+                                         <p className="text-xs font-mono text-gray-300 mt-1 break-all select-all">{agent.id}</p>
+                                     </div>
+                                     <div className="p-3 bg-black/40 rounded-xl border border-white/5">
+                                         <label className="text-[10px] text-gray-500 uppercase font-medium">Status</label>
+                                         <div className="flex items-center gap-2 mt-1">
+                                             <span className={classNames("w-2 h-2 rounded-full", agent.status === 'active' ? 'bg-emerald-500' : 'bg-gray-500')} />
+                                             <span className="text-xs text-gray-300 capitalize">{agent.status}</span>
+                                         </div>
+                                     </div>
+                                     <div className="p-3 bg-black/40 rounded-xl border border-white/5">
+                                         <label className="text-[10px] text-gray-500 uppercase font-medium">Model</label>
+                                         <p className="text-xs text-gray-300 mt-1">{agent.configuration?.model || 'Gemini'}</p>
+                                     </div>
+                                 </div>
+                             </div>
+
+                             {/* How It Works */}
+                             <div className="bg-zinc-900/80 backdrop-blur-sm border border-white/10 rounded-2xl p-5">
+                                 <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                                     <Sparkles className="w-4 h-4 text-red-500" />
+                                     How It Works
+                                 </h3>
+                                 <div className="space-y-4 relative">
+                                     <div className="absolute left-[11px] top-6 bottom-6 w-0.5 bg-gradient-to-b from-red-500/50 via-red-500/20 to-transparent" />
+                                     {[
+                                         { icon: Terminal, title: 'Script Loads', desc: 'Browser fetches widget.js' },
+                                         { icon: Globe, title: 'Initialize', desc: 'Widget connects to Insydr' },
+                                         { icon: Shield, title: 'Validate', desc: 'Domain verification' },
+                                         { icon: MessageSquare, title: 'Ready', desc: 'Chat widget activates' },
+                                     ].map((item, idx) => (
+                                         <div key={idx} className="flex items-start gap-3 relative z-10">
+                                             <div className="w-6 h-6 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center">
+                                                 <item.icon className="w-3 h-3 text-red-400" />
+                                             </div>
+                                             <div className="flex-1">
+                                                 <p className="text-sm font-medium text-white">{item.title}</p>
+                                                 <p className="text-xs text-gray-500">{item.desc}</p>
+                                             </div>
+                                         </div>
+                                     ))}
+                                 </div>
+                             </div>
+
+                             {/* Help Link */}
+                             <div className="p-4 bg-gradient-to-br from-red-900/20 to-zinc-900 border border-red-500/10 rounded-xl group hover:border-red-500/30 transition-colors cursor-pointer">
+                                 <div className="flex items-center justify-between">
+                                     <div className="flex items-center gap-3">
+                                         <ExternalLink className="w-5 h-5 text-red-500" />
+                                         <span className="text-sm font-medium text-white">Need help?</span>
+                                     </div>
+                                     <span className="text-xs text-gray-500 group-hover:text-red-400 transition-colors">View docs →</span>
+                                 </div>
+                             </div>
+                         </div>
+
                      </motion.div>
                 </Tab.Panel>
             </Tab.Panels>
-         </Tab.Group>
+        </div>
+        </Tab.Group>
     </div>
   );
 }

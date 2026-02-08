@@ -89,22 +89,29 @@ async def update_agent(
     """
     Update an agent's configuration.
     """
-    agent = await service.get_agent(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    # Check permissions...
-    
-    updated_agent = await service.update_agent(
-        agent_id, 
-        name=agent_update.name,
-        description=agent_update.description,
-        configuration=agent_update.configuration,
-        behavior_settings=agent_update.behavior_settings,
-        status=agent_update.status,
-        allowed_domains=agent_update.allowed_domains
-    )
-    return updated_agent
+    try:
+        agent = await service.get_agent(agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        
+        # Check permissions...
+        
+        updated_agent = await service.update_agent(
+            agent_id, 
+            name=agent_update.name,
+            description=agent_update.description,
+            configuration=agent_update.configuration,
+            behavior_settings=agent_update.behavior_settings,
+            status=agent_update.status,
+            allowed_domains=agent_update.allowed_domains
+        )
+        return updated_agent
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to update agent: {str(e)}")
 
 @router.post("/{agent_id}/chat", response_model=ChatResponse)
 async def chat_agent(
