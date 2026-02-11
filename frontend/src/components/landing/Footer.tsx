@@ -1,4 +1,5 @@
 import Logo from '@/src/components/ui/Logo';
+import Link from 'next/link';
 
 export default function Footer() {
   return (
@@ -15,17 +16,17 @@ export default function Footer() {
           <div>
             <h4 className="font-bold text-white mb-6">Product</h4>
             <ul className="space-y-4 text-sm text-gray-400">
-              <li><a href="#" className="hover:text-white transition-colors">Features</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Integrations</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Enterprise</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Changelog</a></li>
+              <li><Link href="/features" className="hover:text-white transition-colors">Features</Link></li>
+              <li><Link href="/use-cases" className="hover:text-white transition-colors">Use Cases</Link></li>
+              <li><Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link></li>
+              <li><Link href="#" className="hover:text-white transition-colors">Changelog</Link></li>
             </ul>
           </div>
 
           <div>
             <h4 className="font-bold text-white mb-6">Resources</h4>
             <ul className="space-y-4 text-sm text-gray-400">
-              <li><a href="#" className="hover:text-white transition-colors">Documentation</a></li>
+              <li><a href="https://docs.insydr.ai" target="_blank" className="hover:text-white transition-colors">Documentation</a></li>
               <li><a href="#" className="hover:text-white transition-colors">API Reference</a></li>
               <li><a href="#" className="hover:text-white transition-colors">Community</a></li>
               <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
@@ -35,10 +36,10 @@ export default function Footer() {
           <div>
             <h4 className="font-bold text-white mb-6">Company</h4>
             <ul className="space-y-4 text-sm text-gray-400">
-              <li><a href="#" className="hover:text-white transition-colors">About</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Privacy</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Terms</a></li>
+              <li><Link href="/about" className="hover:text-white transition-colors">About</Link></li>
+              <li><Link href="#" className="hover:text-white transition-colors">Careers</Link></li>
+              <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link></li>
+              <li><Link href="/terms" className="hover:text-white transition-colors">Terms</Link></li>
             </ul>
           </div>
         </div>

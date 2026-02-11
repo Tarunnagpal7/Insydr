@@ -15,7 +15,7 @@ class KnowledgeService:
         self.repo = KnowledgeRepository(session)
         self.pipeline = IngestionPipeline()
 
-    async def ingest_file(self, workspace_id: uuid.UUID, collection_id: uuid.UUID, file_path: str, process_embeddings: bool = False):
+    async def ingest_file(self, workspace_id: uuid.UUID, collection_id: uuid.UUID, file_path: str, process_embeddings: bool = False, original_filename: str = None):
         """
         Ingests a file: 
         1. Always uploads to Cloudinary + DB.
@@ -32,7 +32,7 @@ class KnowledgeService:
             doc_id = uuid.uuid4()
             
             try:
-                upload_result = upload_file(file_path, public_id=f"workspaces/{workspace_id}/docs/{doc_id}")
+                upload_result = await upload_file(file_path, public_id=f"workspaces/{workspace_id}/docs/{doc_id}")
                 print(f"[DEBUG] Cloudinary Upload Result: {upload_result}")
             except Exception as e:
                 print(f"Cloudinary upload failed: {e}")
@@ -40,14 +40,19 @@ class KnowledgeService:
             
             # 2. Extract Title (lazy way: filename)
             # If processing, we might get a better title, but having a record is priority.
-            title = Path(file_path).stem
+            if original_filename:
+                title = Path(original_filename).stem
+                real_filename = original_filename
+            else:
+                title = Path(file_path).stem
+                real_filename = Path(file_path).name
             
             secure_url = upload_result.get("secure_url")
-            # Ensure URL is public (strip signature if present)
-            # Example signature: /s--abc123--/
-            if secure_url and "/s--" in secure_url:
-                import re
-                secure_url = re.sub(r"/s--[^/]+--/", "/", secure_url)
+            # We used to strip signature here, but that causes 404s if the asset is actually private/authenticated.
+            # It is safer to store the full signed URL provided by Cloudinary.
+            # if secure_url and "/s--" in secure_url:
+            #    import re
+            #    secure_url = re.sub(r"/s--[^/]+--/", "/", secure_url)
 
             document = Document(
                 id=doc_id,
@@ -60,7 +65,7 @@ class KnowledgeService:
                 status="uploaded", # Initial status
                 version_number=1,
                 meta={
-                    "original_filename": Path(file_path).name,
+                    "original_filename": real_filename,
                     "cloudinary_public_id": upload_result.get("public_id"),
                 },
                 language="en"
@@ -73,7 +78,7 @@ class KnowledgeService:
             if process_embeddings:
                 try:
                     # Pipeline stuff
-                    result = self.pipeline.process_document(file_path)
+                    result = await self.pipeline.process_document(file_path)
                     
                     # Update status and save tree
                     document.status = "processed"

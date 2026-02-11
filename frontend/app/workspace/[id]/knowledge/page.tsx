@@ -50,11 +50,19 @@ export default function KnowledgePage() {
 
     if (file.type !== 'application/pdf') {
       toast.error('Only PDF files are supported');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
+    // Client-side size check (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+        toast.error('File is too large. Maximum allowed size is 10MB.');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+    }
+
     setIsUploading(true);
-    const toastId = toast.loading('Uploading, Processing & Embeding ...');
+    const toastId = toast.loading('Uploading ...');
 
     try {
       const collectionId = "00000000-0000-0000-0000-000000000000"; 
@@ -65,7 +73,8 @@ export default function KnowledgePage() {
       toast.success('Document processed successfully', { id: toastId });
     } catch (error: any) {
       console.error(error);
-      toast.error(error.message || 'Failed to upload document', { id: toastId });
+      const message = error.response?.data?.detail || error.message || 'Failed to upload document';
+      toast.error(message, { id: toastId });
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -150,22 +159,26 @@ export default function KnowledgePage() {
                 <div>
                   <h3 className="font-medium text-white">{doc.title}</h3>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-gray-500">{(new Date(doc.created_at)).toLocaleDateString()}</span>
+                    <span className="text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString()}</span>
                     <span className="w-1 h-1 rounded-full bg-gray-600" />
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 capitalize">
+                    <span className={`text-xs px-2 py-0.5 rounded-full border capitalise ${
+                        doc.status === 'processed' 
+                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
+                        : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                    }`}>
                       {doc.status}
                     </span>
                   </div>
                 </div>
               </div>
               
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-2">
                   {doc.source_url && (
                     <a 
                         href={doc.source_url} 
                         target="_blank" 
-                        rel="noreferrer"
-                        className="text-gray-500 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors"
+                        rel="noopener noreferrer"
+                        className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                         title="View PDF"
                     >
                         <EyeIcon className="w-5 h-5" />
@@ -173,7 +186,7 @@ export default function KnowledgePage() {
                   )}
                   <button 
                     onClick={() => handleDelete(doc.id)}
-                    className="text-gray-500 hover:text-red-500 p-2 rounded-lg hover:bg-white/5 transition-colors"
+                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                     title="Delete"
                   >
                     <TrashIcon className="w-5 h-5" />
@@ -190,7 +203,7 @@ export default function KnowledgePage() {
             <p className="text-gray-400 mb-4">Upload a PDF to get started with your knowledge base.</p>
             <button
                onClick={handleUploadClick}
-               className="text-red-500 hover:text-red-400 font-medium"
+               className="text-red-500 hover:text-red-400 font-medium hover:underline"
             >
               Upload your first document
             </button>

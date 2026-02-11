@@ -6,6 +6,7 @@ from datetime import datetime
 class DocumentBase(BaseModel):
     title: str
     source_type: str
+    source_url: Optional[str] = None
     status: str
     language: Optional[str] = None
     meta: Optional[Dict] = None

@@ -1,4 +1,5 @@
 import os
+import asyncio
 from pathlib import Path
 from typing import List, Dict, Any
 from pypdf import PdfReader
@@ -9,7 +10,13 @@ class IngestionPipeline:
     def __init__(self):
         self.embedding_service = EmbeddingService()
 
-    def process_document(self, file_path: str) -> Dict[str, Any]:
+    async def process_document(self, file_path: str) -> Dict[str, Any]:
+        """
+        Asynchronously processes a document by running the synchronous logic in a thread.
+        """
+        return await asyncio.to_thread(self._process_sync, file_path)
+
+    def _process_sync(self, file_path: str) -> Dict[str, Any]:
         print(f"[DEBUG] Starting ingestion for {file_path}")
         """
         Extracts text, chunks it, and generates embeddings.
@@ -37,10 +44,6 @@ class IngestionPipeline:
                 embeddings.extend(batch_embeddings)
             except Exception as e:
                 print(f"Error embedding batch {i}: {e}")
-                # Fallback: try one by one or just fill zeros? 
-                # Better to fail loudly or re-try.
-                # For MVP, fill with zeros to save partial progress is risky.
-                # Let's assume re-try logic or fail.
                 raise e
 
         for i, chunk_content in enumerate(text_chunks):
