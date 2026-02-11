@@ -10,9 +10,9 @@ export default function LandingHeader() {
         <Logo size="md" variant="light" href="/" />
         
         <nav className="hidden md:flex items-center gap-8">
-          <a href="#features" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Features</a>
-          <a href="#how-it-works" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">How it Works</a>
-          <a href="#pricing" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Pricing</a>
+          <Link href="/features" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Features</Link>
+          <Link href="/use-cases" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Use Cases</Link>
+          <Link href="/pricing" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Pricing</Link>
           <a href="https://docs.insydr.ai" target="_blank" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Docs</a>
         </nav>
 

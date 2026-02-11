@@ -1,4 +1,4 @@
-
+import asyncio
 import cloudinary
 import cloudinary.uploader
 from app.core.config import settings
@@ -12,29 +12,34 @@ if settings.CLOUDINARY_CLOUD_NAME:
         secure=True
     )
 
-def upload_file(file_path: str, public_id: str = None) -> dict:
+async def upload_file(file_path: str, public_id: str = None) -> dict:
     """
-    Upload a file to Cloudinary.
+    Upload a file to Cloudinary asynchronously.
+    Uses upload_large for chunked uploads to handle bigger files.
     """
     try:
-        # Default to auto, allowing Cloudinary to categorize (PDFs often -> image)
-        # This might allow public access if 'Raw' is restricted.
-        res_type = "auto"
-        # Removed forced raw check
-            
-        response = cloudinary.uploader.upload(
+        # Use 'raw' resource type for PDFs to preserve the original file
+        # 'auto' sometimes converts PDFs to images which can fail for large/complex PDFs
+        res_type = "raw"
+        
+        # Use upload_large for chunked uploads - handles files > 100MB
+        # chunk_size is in bytes (6MB chunks is a good balance)
+        response = await asyncio.to_thread(
+            cloudinary.uploader.upload_large,
             file_path,
             public_id=public_id,
             resource_type=res_type,
             type="upload", 
-            access_mode="public" 
+            access_mode="public",
+            chunk_size=6000000,  # 6MB chunks
+            timeout=300  # 5 minute timeout
         )
         return response
     except Exception as e:
         print(f"Cloudinary upload error: {e}")
         raise e
 
-def delete_file(public_id: str, resource_type: str = "image") -> dict:
+def delete_file(public_id: str, resource_type: str = "raw") -> dict:
     """
     Delete a file from Cloudinary.
     """
