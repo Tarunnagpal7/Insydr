@@ -32,7 +32,9 @@ from app.db.models import (
     webhook_log,
     widget_config,
     unanswered_question,
+    unanswered_question,
     otp,
+    workspace_invitation,
 )
 
 config = context.config

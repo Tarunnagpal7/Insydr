@@ -108,7 +108,7 @@ export default function Header({ showNav = true, className = '', children }: Hea
                   <Menu.Item>
                     {({ active }) => (
                       <Link
-                        href="/dashboard"
+                        href="/dashboard/profile"
                         className={`flex items-center gap-3 px-4 py-2.5 text-sm ${
                           active ? 'bg-white/5 text-white' : 'text-gray-300'
                         }`}
@@ -121,7 +121,7 @@ export default function Header({ showNav = true, className = '', children }: Hea
                   <Menu.Item>
                     {({ active }) => (
                       <Link
-                        href="/dashboard"
+                        href="/dashboard/settings"
                         className={`flex items-center gap-3 px-4 py-2.5 text-sm ${
                           active ? 'bg-white/5 text-white' : 'text-gray-300'
                         }`}

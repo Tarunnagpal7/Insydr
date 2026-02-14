@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workspace Created</title>
+    <style>
+        /* Strict Reset */
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { border: 0; outline: none; text-decoration: none; }
+        table { border-collapse: collapse !important; }
+        body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; background-color: #ffffff; }
+        
+        /* Typography */
+        body { font-family: Helvetica, Arial, sans-serif; color: #000000; }
+        
+        /* Components */
+        .wrapper { width: 100%; background-color: #ffffff; }
+        .container { max-width: 600px; margin: 0 auto; width: 100%; border: 2px solid #000000; }
+        .header { background-color: #000000; padding: 40px 20px; text-align: center; }
+        .logo { font-size: 32px; color: #ffffff; font-weight: bold; text-decoration: none; letter-spacing: -1px; }
+        .logo-red { color: #D60000; }
+        
+        .content { padding: 40px 30px; background-color: #ffffff; }
+        .heading { font-size: 30px; font-weight: 800; color: #000000; margin: 0 0 20px 0; line-height: 1.2; text-transform: uppercase; letter-spacing: -0.5px; }
+        .text { font-size: 16px; font-weight: 400; color: #000000; margin: 0 0 20px 0; line-height: 1.6; }
+        
+        /* Data Box */
+        .data-box { width: 100%; border: 2px solid #000000; margin: 30px 0; background-color: #ffffff; }
+        .data-row td { padding: 15px 20px; border-bottom: 1px solid #000000; }
+        .data-row:last-child td { border-bottom: none; }
+        .label { font-size: 14px; font-weight: 700; text-transform: uppercase; color: #000000; width: 40%; }
+        .value { font-size: 16px; font-weight: 400; color: #000000; text-align: right; }
+        .status-active { color: #D60000; font-weight: 700; text-transform: uppercase; }
+
+        /* Button */
+        .btn-container { text-align: center; margin: 20px 0 10px; }
+        .btn { background-color: #000000; color: #ffffff; padding: 16px 40px; text-decoration: none; font-weight: bold; font-size: 16px; text-transform: uppercase; display: inline-block; letter-spacing: 0.5px; }
+        .btn:hover { background-color: #D60000; }
+        
+        /* Footer */
+        .footer { background-color: #000000; padding: 30px; text-align: center; }
+        .footer-text { color: #ffffff; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+    <table class="wrapper" role="presentation">
+        <tr>
+            <td align="center">
+                <table class="container" role="presentation">
+                    <!-- Header -->
+                    <tr>
+                        <td class="header">
+                            <span class="logo">
+                                INSYDR<span class="logo-red">.</span>
+                            </span>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td class="content">
+                            <h1 class="heading">Workspace Ready.</h1>
+                            <p class="text">Hi {{ name }},</p>
+                            <p class="text">
+                                Your new workspace has been successfully initialized. You have zero limits. Start building.
+                            </p>
+
+                            <!-- Data Box Table -->
+                            <table class="data-box" role="presentation">
+                                <tr class="data-row">
+                                    <td class="label">Workspace</td>
+                                    <td class="value">{{ workspace_name }}</td>
+                                </tr>
+                                <tr class="data-row">
+                                    <td class="label">Created</td>
+                                    <td class="value">{{ created_at }}</td>
+                                </tr>
+                                <tr class="data-row">
+                                    <td class="label">Status</td>
+                                    <td class="value status-active">Active</td>
+                                </tr>
+                            </table>
+
+                            <div class="btn-container">
+                                <a href="{{ dashboard_url }}" class="btn">Enter Workspace</a>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td class="footer">
+                            <p class="footer-text">&copy; 2026 INSYDR AI INC.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

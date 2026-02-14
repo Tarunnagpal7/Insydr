@@ -7,18 +7,27 @@ from app.db.models.workspace_member import WorkspaceMember
 from app.db.models.user import User
 from app.db.repositories.workspace_repository import WorkspaceRepository, WorkspaceMemberRepository
 from app.db.repositories.auth_repository import UserRepository
+from app.db.repositories.workspace_invitation_repository import WorkspaceInvitationRepository
+from app.db.models.workspace_invitation import WorkspaceInvitation
+import secrets
+from datetime import timedelta
 
+from app.services.email_service import EmailService
 
 class WorkspaceService:
     def __init__(
         self,
         workspace_repo: WorkspaceRepository,
         member_repo: WorkspaceMemberRepository,
-        user_repo: UserRepository
+        user_repo: UserRepository,
+        invitation_repo: WorkspaceInvitationRepository,
+        email_service: EmailService
     ):
         self.workspace_repo = workspace_repo
         self.member_repo = member_repo
         self.user_repo = user_repo
+        self.invitation_repo = invitation_repo
+        self.email_service = email_service
 
     async def create_workspace(
         self,
@@ -39,7 +48,22 @@ class WorkspaceService:
             subscription_tier="FREE"
         )
         
-        return await self.workspace_repo.create(workspace)
+        created_workspace = await self.workspace_repo.create(workspace)
+        
+        # Send email notification
+        owner = await self.user_repo.get_by_id(user_id)
+        if owner:
+            # Assuming the first origin is the main frontend
+            dashboard_url = "http://localhost:3000/dashboard" 
+            await self.email_service.send_workspace_created_email(
+                email=owner.email,
+                name=owner.full_name,
+                workspace_name=created_workspace.name,
+                created_at=created_workspace.created_at.strftime("%Y-%m-%d %H:%M"),
+                dashboard_url=dashboard_url
+            )
+            
+        return created_workspace
 
     async def get_user_workspaces(self, user_id: UUID) -> List[dict]:
         """Get all workspaces for a user with stats and role."""
@@ -215,20 +239,161 @@ class WorkspaceService:
         
         return await self.member_repo.remove_member(member_id)
 
-    async def update_member_role(
+        return await self.member_repo.update_role(member_id, new_role)
+
+    async def invite_user(
         self,
         workspace_id: UUID,
-        member_id: UUID,
-        new_role: str,
-        user_id: UUID
-    ) -> WorkspaceMember:
-        """Update member role."""
+        inviter_id: UUID,
+        email: str,
+        role: str = "MEMBER"
+    ) -> WorkspaceInvitation:
+        """Invite a user to the workspace."""
         workspace = await self.workspace_repo.get_by_id(workspace_id)
-        
         if not workspace:
             raise ValueError("Workspace not found")
+
+        # Check permissions
+        inviter_role = await self.workspace_repo.get_user_role(workspace_id, inviter_id)
+        if inviter_role not in ["OWNER", "ADMIN"]:
+            raise PermissionError("Only owners and admins can invite members")
+
+        # Check if user is already a member
+        user = await self.user_repo.get_by_email(email)
+        if user:
+            member = await self.member_repo.get_member(workspace_id, user.id)
+            if member:
+                raise ValueError("User is already a member")
+            if workspace.owner_id == user.id:
+                raise ValueError("User is the owner")
+
+        # Check if invitation already pending
+        existing_invite = await self.invitation_repo.get_by_email_and_workspace(email, workspace_id)
+        if existing_invite:
+            raise ValueError("Invitation already sent to this email")
+
+        # Check Plan Limits
+        # Count current members (including owner)
+        members = await self.member_repo.get_members(workspace_id)
+        current_count = len(members) + 1 # +1 for owner (if not in members table, checking get_members logic)
         
-        if workspace.owner_id != user_id:
-            raise PermissionError("Only the owner can change member roles")
+        # Verify get_members logic: It fetches WorkspaceMember rows. Owner might not be in WorkspaceMember depending on implementation.
+        # Looking at create_workspace, owner is just set on Workspace.owner_id, not added to WorkspaceMember.
+        # So yes, +1 is correct.
         
-        return await self.member_repo.update_role(member_id, new_role)
+        # Count pending invitations
+        pending_invites = await self.invitation_repo.get_pending_by_workspace(workspace_id)
+        pending_count = len(pending_invites)
+        
+        total_users = current_count + pending_count + 1 # +1 for the new one being added
+        
+        limit = 2 # Default/Free (Owner + 1 member)
+        if workspace.subscription_tier == "PRO":
+            limit = 5 # Owner + 4 members
+        elif workspace.subscription_tier == "BUSINESS":
+            limit = 1000 # Unlimited effectively
+            
+        if total_users > limit:
+            if workspace.subscription_tier == "FREE":
+                raise ValueError("Free tier limit reached (1 member). Upgrade to Pro to invite up to 5 members.")
+            elif workspace.subscription_tier == "PRO":
+                raise ValueError("Pro tier limit reached (5 members). Upgrade to Business for unlimited members.")
+            else:
+                 raise ValueError(f"Workspace limit reached ({limit} members).")
+
+        # Create Invitation
+        token = secrets.token_urlsafe(32)
+        invitation = WorkspaceInvitation(
+            workspace_id=workspace_id,
+            inviter_id=inviter_id,
+            email=email,
+            token=token,
+            role=role,
+            status="PENDING",
+            expires_at=datetime.utcnow() + timedelta(days=7)
+        )
+        
+        await self.invitation_repo.create(invitation)
+        
+        # Send Email
+        inviter = await self.user_repo.get_by_id(inviter_id)
+        # TODO: Use environment variable for frontend URL
+        invite_url = f"http://localhost:3000/invitation/{token}"
+        
+        await self.email_service.send_invitation_email(
+            email=email,
+            inviter_name=inviter.full_name,
+            workspace_name=workspace.name,
+            invite_url=invite_url
+        )
+        
+        return invitation
+
+    async def get_pending_invitations(self, workspace_id: UUID, user_id: UUID) -> List[WorkspaceInvitation]:
+        """Get pending invitations for a workspace."""
+        role = await self.workspace_repo.get_user_role(workspace_id, user_id)
+        if role not in ["OWNER", "ADMIN"]:
+            raise PermissionError("Only owners and admins can view pending invitations")
+        
+        return await self.invitation_repo.get_pending_by_workspace(workspace_id)
+
+    async def get_invitation(self, token: str) -> dict:
+        """Get invitation details with workspace info."""
+        invitation = await self.invitation_repo.get_by_token(token)
+        if not invitation:
+            raise ValueError("Invalid invitation token")
+            
+        if invitation.status != "PENDING":
+            raise ValueError("Invitation is no longer valid")
+            
+        if invitation.expires_at < datetime.utcnow():
+            invitation.status = "EXPIRED"
+            await self.invitation_repo.update(invitation)
+            raise ValueError("Invitation has expired")
+            
+        workspace = await self.workspace_repo.get_by_id(invitation.workspace_id)
+        inviter = await self.user_repo.get_by_id(invitation.inviter_id)
+        
+        return {
+            "invitation": invitation,
+            "workspace": workspace,
+            "inviter": inviter
+        }
+
+    async def accept_invitation(self, token: str, user_id: UUID) -> WorkspaceMember:
+        """Accept an invitation."""
+        invitation_data = await self.get_invitation(token)
+        invitation = invitation_data["invitation"]
+        
+        user = await self.user_repo.get_by_id(user_id)
+        
+        # Optional: Enforce email match?
+        # if user.email != invitation.email:
+        #     raise ValueError("This invitation was sent to a different email address")
+        
+        # Check if already member
+        existing = await self.member_repo.get_member(invitation.workspace_id, user_id)
+        if existing:
+            invitation.status = "ACCEPTED"
+            invitation.accepted_at = datetime.utcnow()
+            await self.invitation_repo.update(invitation)
+            return existing
+
+        # Double check limits (race condition)
+        # ... logic similar to invite ...
+        
+        # Create Member
+        member = WorkspaceMember(
+            workspace_id=invitation.workspace_id,
+            user_id=user_id,
+            role=invitation.role
+        )
+        
+        new_member = await self.member_repo.add_member(member)
+        
+        # Update Invitation
+        invitation.status = "ACCEPTED"
+        invitation.accepted_at = datetime.utcnow()
+        await self.invitation_repo.update(invitation)
+        
+        return new_member
