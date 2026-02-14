@@ -1,10 +1,12 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
-import { workspaceApi, Workspace, WorkspaceCreate, WorkspaceUpdate } from '@/src/lib/workspace';
+import { workspaceApi, Workspace, WorkspaceCreate, WorkspaceUpdate, WorkspaceMember, WorkspaceMemberAdd, InvitationResponse } from '@/src/lib/workspace';
 
 // Workspace State Interface
 export interface WorkspaceState {
   workspaces: Workspace[];
   currentWorkspace: Workspace | null;
+  invitations: InvitationResponse[];
+  members: WorkspaceMember[];
   isLoading: boolean;
   isCreating: boolean;
   error: string | null;
@@ -14,10 +16,28 @@ export interface WorkspaceState {
 const initialState: WorkspaceState = {
   workspaces: [],
   currentWorkspace: null,
+  invitations: [],
+  members: [],
   isLoading: false,
   isCreating: false,
   error: null,
 };
+
+// Async Thunks
+// ... (existing thunks)
+
+export const fetchInvitations = createAsyncThunk(
+  'workspace/fetchInvitations',
+  async (workspaceId: string, { rejectWithValue }) => {
+    try {
+      const response = await workspaceApi.getInvitations(workspaceId);
+      return response.data;
+    } catch (error: any) {
+      const message = error?.response?.data?.detail || error?.message || 'Failed to fetch invitations';
+      return rejectWithValue(message);
+    }
+  }
+);
 
 // Async Thunks
 export const fetchWorkspaces = createAsyncThunk(
@@ -80,6 +100,46 @@ export const deleteWorkspace = createAsyncThunk(
       return workspaceId;
     } catch (error: any) {
       const message = error?.response?.data?.detail || error?.message || 'Failed to delete workspace';
+      return rejectWithValue(message);
+    }
+  }
+);
+
+// Member Thunks
+export const fetchMembers = createAsyncThunk(
+  'workspace/fetchMembers',
+  async (workspaceId: string, { rejectWithValue }) => {
+    try {
+      const response = await workspaceApi.getMembers(workspaceId);
+      return response.data;
+    } catch (error: any) {
+      const message = error?.response?.data?.detail || error?.message || 'Failed to fetch members';
+      return rejectWithValue(message);
+    }
+  }
+);
+
+export const inviteMember = createAsyncThunk(
+  'workspace/inviteMember',
+  async ({ workspaceId, data }: { workspaceId: string; data: WorkspaceMemberAdd }, { rejectWithValue }) => {
+    try {
+      const response = await workspaceApi.createInvitation(workspaceId, data);
+      return response.data;
+    } catch (error: any) {
+      const message = error?.response?.data?.detail || error?.message || 'Failed to invite member';
+      return rejectWithValue(message);
+    }
+  }
+);
+
+export const removeMember = createAsyncThunk(
+  'workspace/removeMember',
+  async ({ workspaceId, memberId }: { workspaceId: string; memberId: string }, { rejectWithValue }) => {
+    try {
+      await workspaceApi.removeMember(workspaceId, memberId);
+      return memberId;
+    } catch (error: any) {
+      const message = error?.response?.data?.detail || error?.message || 'Failed to remove member';
       return rejectWithValue(message);
     }
   }
@@ -206,6 +266,24 @@ const workspaceSlice = createSlice({
       })
       .addCase(deleteWorkspace.rejected, (state, action) => {
         state.error = action.payload as string;
+      });
+
+    // Invitations
+    builder
+        .addCase(fetchInvitations.fulfilled, (state, action) => {
+            state.invitations = action.payload;
+        })
+        .addCase(inviteMember.fulfilled, (state, action) => {
+            state.invitations.push(action.payload);
+        });
+
+    // Members
+    builder
+      .addCase(fetchMembers.fulfilled, (state, action) => {
+        state.members = action.payload.members;
+      })
+      .addCase(removeMember.fulfilled, (state, action) => {
+        state.members = state.members.filter(m => m.id !== action.payload);
       });
   },
 });

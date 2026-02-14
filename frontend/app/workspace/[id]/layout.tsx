@@ -158,7 +158,12 @@ export default function WorkspaceLayout({
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
-            {navigation.map((item) => {
+            {navigation.filter(item => {
+                if (item.name === 'Settings' || item.name === 'API Keys') {
+                    return currentWorkspace?.role === 'OWNER' || currentWorkspace?.role === 'ADMIN';
+                }
+                return true;
+            }).map((item) => {
               const Icon = item.icon;
               const fullPath = `${basePath}${item.href}`;
               const isActive = pathname === fullPath || (item.href === '' && pathname === basePath);
@@ -261,7 +266,7 @@ export default function WorkspaceLayout({
                       <Menu.Item>
                         {({ active }) => (
                           <Link
-                            href="/dashboard"
+                            href="/dashboard/profile"
                             className={`flex items-center gap-3 px-4 py-2.5 text-sm ${
                               active ? 'bg-white/5 text-white' : 'text-gray-300'
                             }`}
@@ -274,7 +279,7 @@ export default function WorkspaceLayout({
                       <Menu.Item>
                         {({ active }) => (
                           <Link
-                            href={`${basePath}/settings`}
+                            href="/dashboard/settings"
                             className={`flex items-center gap-3 px-4 py-2.5 text-sm ${
                               active ? 'bg-white/5 text-white' : 'text-gray-300'
                             }`}

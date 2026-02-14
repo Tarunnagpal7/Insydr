@@ -13,6 +13,18 @@ class Settings(BaseSettings):
     # OTP Settings
     OTP_EXPIRY_MINUTES: int = 10
     
+    # Mail Settings
+    MAIL_USERNAME: str
+    MAIL_PASSWORD: str
+    MAIL_FROM: str
+    MAIL_PORT: int = 587
+    MAIL_SERVER: str
+    MAIL_FROM_NAME: str = "Insydr Support"
+    MAIL_STARTTLS: bool = True
+    MAIL_SSL_TLS: bool = False
+    USE_CREDENTIALS: bool = True
+    VALIDATE_CERTS: bool = True
+    
     # CORS - Include widget dev server and allow any origin for widget endpoints
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,null"
     

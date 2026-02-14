@@ -24,22 +24,30 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+
 async def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
     """Dependency to get auth service."""
+    from app.services.email_service import EmailService
     user_repo = UserRepository(db)
     otp_repo = OTPRepository(db)
-    return AuthService(user_repo, otp_repo)
+    email_service = EmailService()
+    return AuthService(user_repo, otp_repo, email_service)
 
 
 async def get_workspace_service(db: AsyncSession = Depends(get_db)):
     """Dependency to get workspace service."""
     from app.db.repositories.workspace_repository import WorkspaceRepository, WorkspaceMemberRepository
     from app.services.workspace_service import WorkspaceService
+    from app.services.email_service import EmailService
+    
+    from app.db.repositories.workspace_invitation_repository import WorkspaceInvitationRepository
     
     workspace_repo = WorkspaceRepository(db)
     member_repo = WorkspaceMemberRepository(db)
     user_repo = UserRepository(db)
-    return WorkspaceService(workspace_repo, member_repo, user_repo)
+    invitation_repo = WorkspaceInvitationRepository(db)
+    email_service = EmailService()
+    return WorkspaceService(workspace_repo, member_repo, user_repo, invitation_repo, email_service)
 
 
 async def get_api_key_service(db: AsyncSession = Depends(get_db)):

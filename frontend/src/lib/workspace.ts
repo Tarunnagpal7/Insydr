@@ -53,6 +53,17 @@ export interface WorkspaceMemberAdd {
   role?: string;
 }
 
+export interface InvitationResponse {
+  id: string;
+  workspace_id: string;
+  inviter_id: string;
+  email: string;
+  role: string;
+  status: string;
+  expires_at: string;
+  created_at: string;
+}
+
 export const workspaceApi = {
   // Workspace CRUD
   getAll: () => api.get<WorkspaceListResponse>('/workspaces'),
@@ -70,9 +81,15 @@ export const workspaceApi = {
   addMember: (workspaceId: string, data: WorkspaceMemberAdd) =>
     api.post<WorkspaceMember>(`/workspaces/${workspaceId}/members`, data),
   
+  createInvitation: (workspaceId: string, data: WorkspaceMemberAdd) =>
+    api.post<InvitationResponse>(`/workspaces/${workspaceId}/invitations`, data),
+  
   getMembers: (workspaceId: string) =>
     api.get<{ members: WorkspaceMember[]; total: number }>(`/workspaces/${workspaceId}/members`),
   
   removeMember: (workspaceId: string, memberId: string) =>
     api.delete(`/workspaces/${workspaceId}/members/${memberId}`),
+
+  getInvitations: (workspaceId: string) => 
+    api.get<InvitationResponse[]>(`/workspaces/${workspaceId}/invitations`),
 };

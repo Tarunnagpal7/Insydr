@@ -68,7 +68,7 @@ class WorkspaceMemberAdd(BaseModel):
 
 
 class WorkspaceMemberResponse(BaseModel):
-    id: UUID
+    id: Optional[UUID] = None
     user_id: UUID
     workspace_id: UUID
     role: str

@@ -14,10 +14,13 @@ from app.security.auth import (
 from app.core.config import settings
 
 
+from app.services.email_service import EmailService
+
 class AuthService:
-    def __init__(self, user_repo: UserRepository, otp_repo: OTPRepository):
+    def __init__(self, user_repo: UserRepository, otp_repo: OTPRepository, email_service: EmailService):
         self.user_repo = user_repo
         self.otp_repo = otp_repo
+        self.email_service = email_service
 
     async def signup(self, email: str, password: str, full_name: str) -> tuple[User, str]:
         """
@@ -39,6 +42,13 @@ class AuthService:
 
         # Generate and save OTP
         otp_code = await self._create_otp(email, "email_verification")
+        
+        # Send emails background
+        # Note: In a real production app, you might want to use BackgroundTasks from FastAPI
+        # here to initiate sending without blocking the response too much. 
+        # For now, we await it to ensure it works.
+        await self.email_service.send_welcome_email(email, full_name)
+        await self.email_service.send_verification_email(email, full_name, otp_code)
 
         return user, otp_code
 
@@ -102,6 +112,8 @@ class AuthService:
             return None
 
         otp_code = await self._create_otp(email, "password_reset")
+        await self.email_service.send_password_reset_email(email, otp_code)
+        
         return otp_code
 
     async def reset_password(self, email: str, otp_code: str, new_password: str) -> User:
@@ -140,6 +152,12 @@ class AuthService:
             raise ValueError("Your email is already verified. You can log in.")
 
         otp_code = await self._create_otp(email, purpose)
+        
+        if purpose == "email_verification":
+            await self.email_service.send_verification_email(email, user.full_name, otp_code)
+        elif purpose == "password_reset":
+            await self.email_service.send_password_reset_email(email, otp_code)
+            
         return otp_code
 
     async def get_user_by_id(self, user_id: UUID) -> Optional[User]:

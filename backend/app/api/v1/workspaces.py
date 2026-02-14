@@ -14,6 +14,7 @@ from app.api.schemas.workspace import (
     WorkspaceMemberResponse,
     WorkspaceMemberListResponse
 )
+from app.api.schemas.invitation import InvitationCreate, InvitationResponse
 from app.db.models.user import User
 
 
@@ -242,6 +243,57 @@ async def remove_member(
     """
     try:
         await workspace_service.remove_member(workspace_id, member_id, current_user.id)
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+
+
+@router.post("/{workspace_id}/invitations", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
+async def create_invitation(
+    workspace_id: UUID,
+    request: InvitationCreate,
+    current_user: User = Depends(get_current_user),
+    workspace_service: WorkspaceService = Depends(get_workspace_service)
+):
+    """
+    Invite a user to the workspace.
+    Only owners and admins can invite.
+    """
+    try:
+        invitation = await workspace_service.invite_user(
+            workspace_id=workspace_id,
+            inviter_id=current_user.id,
+            email=request.email,
+            role=request.role
+        )
+        return InvitationResponse.model_validate(invitation)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+
+
+@router.get("/{workspace_id}/invitations", response_model=List[InvitationResponse])
+async def list_invitations(
+    workspace_id: UUID,
+    current_user: User = Depends(get_current_user),
+    workspace_service: WorkspaceService = Depends(get_workspace_service)
+):
+    """
+    Get all pending invitations for a workspace.
+    Only owners and admins can view invitations.
+    """
+    try:
+        invitations = await workspace_service.get_pending_invitations(workspace_id, current_user.id)
+        return [InvitationResponse.model_validate(inv) for inv in invitations]
     except PermissionError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
