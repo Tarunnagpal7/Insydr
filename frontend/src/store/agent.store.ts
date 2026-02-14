@@ -44,7 +44,8 @@ export const createAgent = createAsyncThunk(
     try {
       return await createAgentService(workspaceId, data);
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to create agent');
+      const message = error?.response?.data?.detail || error.message || 'Failed to create agent';
+      return rejectWithValue(message);
     }
   }
 );

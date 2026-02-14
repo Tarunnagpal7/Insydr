@@ -100,7 +100,8 @@ export default function AgentsPage() {
       setSelectedDocIds([]);
       setAllowedDomains('');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to create agent', { id: toastId });
+      const message = typeof error === 'string' ? error : error?.message || 'Failed to create agent';
+      toast.error(message, { id: toastId });
     } finally {
       setIsSubmitting(false);
     }

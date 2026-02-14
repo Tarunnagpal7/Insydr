@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "build:watch": "vite build --watch",
-    "serve": "npx serve dist -p 5173 --cors",
-    "preview": "vite preview --port 5173"
+    "serve": "npx serve dist -p 5174 --cors",
+    "preview": "vite preview --port 5174"
   },
   "keywords": [],
   "author": "",
