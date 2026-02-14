@@ -115,19 +115,23 @@ class KnowledgeService:
         """
         Process a document that is already in DB/Cloudinary but needs embeddings.
         """
+        print(f"[DEBUG] Processing existing document: {document_id}")
         # Fetch document
         stmt = select(Document).where(Document.id == document_id)
         result = await self.repo.session.execute(stmt)
         document = result.scalar_one_or_none()
         
         if not document or not document.source_url:
+             print(f"[ERROR] Document {document_id} not found or has no source URL")
              raise ValueError("Document not found or has no source URL")
              
         if document.status == "processed":
+            print(f"[DEBUG] Document {document_id} already processed")
             return document
 
         # Download URL
         download_url = document.source_url
+        print(f"[DEBUG] Downloading from {download_url}")
         
         # ensure public
         import re
@@ -135,41 +139,53 @@ class KnowledgeService:
             download_url = re.sub(r"/s--[^/]+--/", "/", download_url)
 
         # Download file to temp
-        import requests
+        import httpx
         import tempfile
         
         suffix = ".pdf" # Assume PDF
         tmp_path = None
         try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                tmp_path = tmp.name
-                headers = {"User-Agent": "Mozilla/5.0"}
-                with requests.get(download_url, headers=headers, stream=True) as response:
+            # Create temp file
+            # We close it immediately so we can write to it in chunks or via httpx
+            fd, tmp_path = tempfile.mkstemp(suffix=suffix)
+            os.close(fd)
+            
+            async with httpx.AsyncClient() as client:
+                async with client.stream('GET', download_url, follow_redirects=True) as response:
                     if response.status_code != 200:
                          raise ValueError(f"Failed to download document: {response.status_code} from {download_url}")
                     
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            tmp.write(chunk)
-                    
-                    tmp.flush()
-                
-        except Exception as e:
-            if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)
-            raise ValueError(f"Download failed: {str(e)}")
+                    with open(tmp_path, 'wb') as f:
+                        async for chunk in response.aiter_bytes():
+                            f.write(chunk)
             
-        try:
-            result = self.pipeline.process_document(tmp_path)
+            print(f"[DEBUG] Downloaded to {tmp_path}. Processing...")
+            
+            # Process in pipeline
+            result = await self.pipeline.process_document(tmp_path)
             
             # Save chunks
             await self.repo.save_document_tree(document, result['chunks'])
             
             document.status = "processed"
+            # document.title = result['title'] # Optional update
             await self.repo.session.commit()
+            print(f"[DEBUG] Document {document_id} processed successfully")
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to process document {document_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            document.status = "error_processing"
+            # Try to commit the error status so we don't retry endlessly or leave it hanging
+            try:
+                await self.repo.session.commit()
+            except:
+                pass 
+            raise ValueError(f"Processing failed: {str(e)}")
             
         finally:
-            if os.path.exists(tmp_path):
+            if tmp_path and os.path.exists(tmp_path):
                 os.remove(tmp_path)
                 
         return document
