@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { Tab } from '@headlessui/react';
 import classNames from 'classnames';
 import ReactMarkdown from 'react-markdown';
+import { getCollections, getDocuments, Collection, Document as KBDocument } from '@/src/features/knowledge/knowledge.service';
 
 interface Message {
   id: string;
@@ -449,7 +450,7 @@ export default function AgentDetailsPage() {
                 {/* Tabs */}
                 <div className="border-b border-white/10">
                     <Tab.List className="flex space-x-6">
-                        {['Playground', 'Customization', 'Integration', 'Settings'].map((tab) => (
+                        {['Playground', 'Customization', 'Integration', 'Knowledge', 'Settings'].map((tab) => (
                             <Tab
                                 key={tab}
                                 className={({ selected }) =>
@@ -1036,6 +1037,12 @@ export default function AgentDetailsPage() {
                          </div>
 
                      </motion.div>
+                </Tab.Panel>
+                {/* ═══ Knowledge Tab ═══ */}
+                <Tab.Panel className="flex-1 overflow-y-auto p-6 focus:outline-none">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 max-w-3xl">
+                        <KnowledgeTab workspaceId={workspaceId} agentId={agentId} agent={agent} setAgent={setAgent} setHasUnsavedChanges={setHasUnsavedChanges} />
+                    </motion.div>
                 </Tab.Panel>
 
                 {/* 4. Settings Panel */}
@@ -1632,9 +1639,188 @@ export default function AgentDetailsPage() {
 
                      </motion.div>
                 </Tab.Panel>
+
             </Tab.Panels>
         </div>
         </Tab.Group>
     </div>
+  );
+}
+
+// ─── Knowledge Tab Component ───
+function KnowledgeTab({ workspaceId, agentId, agent, setAgent, setHasUnsavedChanges }: {
+  workspaceId: string;
+  agentId: string;
+  agent: Agent;
+  setAgent: (agent: Agent) => void;
+  setHasUnsavedChanges: (v: boolean) => void;
+}) {
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [documents, setDocuments] = useState<KBDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  const DEFAULT_COLLECTION_ID = "00000000-0000-0000-0000-000000000000";
+  const linkedDocIds: string[] = agent.configuration?.knowledge_sources || [];
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [cols, docs] = await Promise.all([
+          getCollections(workspaceId),
+          getDocuments(workspaceId),
+        ]);
+        setCollections(cols);
+        setDocuments(docs);
+      } catch (e) {
+        console.error(e);
+      } finally { setLoading(false); }
+    }
+    load();
+  }, [workspaceId]);
+
+  const toggleDocument = (docId: string) => {
+    const current = agent.configuration?.knowledge_sources || [];
+    const updated = current.includes(docId) ? current.filter((id: string) => id !== docId) : [...current, docId];
+    setAgent({ ...agent, configuration: { ...agent.configuration, knowledge_sources: updated } });
+    setHasUnsavedChanges(true);
+  };
+
+  const toggleAllInCollection = (collectionId: string) => {
+    const colDocs = documents.filter(d => d.collection_id === collectionId && d.status === 'processed');
+    const colDocIds = colDocs.map(d => d.id);
+    const current: string[] = agent.configuration?.knowledge_sources || [];
+    const allLinked = colDocIds.every(id => current.includes(id));
+    const updated = allLinked
+      ? current.filter(id => !colDocIds.includes(id))
+      : [...current, ...colDocIds.filter(id => !current.includes(id))];
+    setAgent({ ...agent, configuration: { ...agent.configuration, knowledge_sources: updated } });
+    setHasUnsavedChanges(true);
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedGroups(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+
+  // Group into collections and standalone
+  const processedDocs = documents.filter(d => d.status === 'processed');
+  const standaloneDocs = processedDocs.filter(d => !d.collection_id || d.collection_id === DEFAULT_COLLECTION_ID);
+  const collectionGroups = collections.map(col => ({
+    ...col,
+    docs: processedDocs.filter(d => d.collection_id === col.id),
+  })).filter(g => g.docs.length > 0);
+
+  if (loading) {
+    return <div className="flex justify-center py-10"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>;
+  }
+
+  return (
+    <>
+      <div>
+        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <Layers className="w-5 h-5 text-red-500" /> Knowledge Sources
+        </h2>
+        <p className="text-sm text-gray-400 mt-1">
+          Select which collections and documents this agent can access.
+          <strong className="text-gray-300"> {linkedDocIds.length}</strong> document(s) linked.
+        </p>
+      </div>
+
+      {/* Collections with expandable doc lists */}
+      {collectionGroups.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase">Collections</h3>
+          {collectionGroups.map(group => {
+            const linkedCount = group.docs.filter(d => linkedDocIds.includes(d.id)).length;
+            const allLinked = group.docs.length > 0 && linkedCount === group.docs.length;
+            const isExpanded = expandedGroups.has(group.id);
+            return (
+              <div key={group.id} className="bg-zinc-900 border border-white/10 rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between p-3 hover:bg-white/[0.03] transition-colors">
+                  <button onClick={() => toggleExpand(group.id)} className="flex items-center gap-3 flex-1 text-left">
+                    <span className="text-gray-400">{isExpanded ? '▾' : '▸'}</span>
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <Layers className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-white">{group.name}</span>
+                      <span className="text-xs text-gray-500 ml-2">{linkedCount}/{group.docs.length} linked</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => toggleAllInCollection(group.id)}
+                    className={classNames(
+                      "relative inline-flex h-6 w-10 items-center rounded-full transition-colors focus:outline-none",
+                      allLinked ? "bg-emerald-500" : "bg-gray-600"
+                    )}
+                  >
+                    <span className={classNames(
+                      "inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                      allLinked ? "translate-x-5" : "translate-x-1"
+                    )} />
+                  </button>
+                </div>
+                {isExpanded && (
+                  <div className="border-t border-white/5 divide-y divide-white/5">
+                    {group.docs.map(doc => {
+                      const isLinked = linkedDocIds.includes(doc.id);
+                      return (
+                        <div key={doc.id} onClick={() => toggleDocument(doc.id)}
+                          className={classNames("flex items-center gap-3 px-4 py-2.5 pl-14 cursor-pointer transition-colors",
+                            isLinked ? "bg-emerald-500/5 hover:bg-emerald-500/10" : "hover:bg-white/5"
+                          )}>
+                          <div className={classNames("w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
+                            isLinked ? "bg-emerald-500 border-emerald-500" : "border-gray-600"
+                          )}>
+                            {isLinked && <CheckCircle className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <p className="text-sm text-white truncate flex-1">{doc.title}</p>
+                          <span className="text-xs text-gray-500 uppercase">{doc.source_type}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Standalone Documents */}
+      {standaloneDocs.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase">Standalone Documents</h3>
+          <div className="bg-zinc-900 border border-white/10 rounded-xl divide-y divide-white/5 overflow-hidden">
+            {standaloneDocs.map(doc => {
+              const isLinked = linkedDocIds.includes(doc.id);
+              return (
+                <div key={doc.id} onClick={() => toggleDocument(doc.id)}
+                  className={classNames("flex items-center gap-4 p-3 cursor-pointer transition-colors",
+                    isLinked ? "bg-emerald-500/5 hover:bg-emerald-500/10" : "hover:bg-white/5"
+                  )}>
+                  <div className={classNames("w-5 h-5 rounded border-2 flex items-center justify-center shrink-0",
+                    isLinked ? "bg-emerald-500 border-emerald-500" : "border-gray-600"
+                  )}>
+                    {isLinked && <CheckCircle className="w-3 h-3 text-white" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{doc.title}</p>
+                    <span className="text-xs text-gray-500 uppercase">{doc.source_type}</span>
+                  </div>
+                  <span className="text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString()}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {processedDocs.length === 0 && (
+        <div className="p-8 text-center text-gray-500 text-sm bg-zinc-900 border border-white/10 rounded-xl">
+          No processed documents. Upload and process documents from the Knowledge Base page first.
+        </div>
+      )}
+    </>
   );
 }

@@ -18,7 +18,10 @@ import {
   Activity,
   Globe,
   Sparkles,
-  ChevronDown
+  ChevronDown,
+  Search,
+  Brain,
+  Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import classNames from 'classnames';
@@ -30,6 +33,8 @@ import {
   getHourlyDistribution,
   getTopPages,
   getResponseTimeDistribution,
+  getKnowledgeGaps,
+  analyzeKnowledgeGaps,
   formatDateForAPI,
   getDateRangePreset,
   DashboardStats,
@@ -38,7 +43,9 @@ import {
   AgentPerformance,
   HourlyPoint,
   TopPage,
-  ResponseTimeDistribution
+  ResponseTimeDistribution,
+  UnansweredQuestion,
+  GapAnalysis
 } from '@/src/features/analytics/analytics.service';
 import { getAgents, Agent } from '@/src/features/agents/agents.service';
 
@@ -697,6 +704,129 @@ const ResponseTimeDonut = ({ data }: { data: ResponseTimeDistribution }) => {
   );
 };
 
+// Knowledge Gaps Component
+const KnowledgeGapsPanel = ({ workspaceId }: { workspaceId: string }) => {
+  const [gaps, setGaps] = useState<UnansweredQuestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchGaps = async () => {
+      try {
+        const data = await getKnowledgeGaps({ workspace_id: workspaceId });
+        setGaps(data);
+      } catch (error) {
+        console.error('Failed to load knowledge gaps', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchGaps();
+  }, [workspaceId]);
+
+  const handleAnalyze = async () => {
+    setAnalyzing(true);
+    try {
+      const result = await analyzeKnowledgeGaps({ workspace_id: workspaceId });
+      setAnalysis(result.analysis);
+      toast.success('Analysis complete!');
+    } catch (error) {
+      console.error('Failed to analyze gaps', error);
+      toast.error('Failed to analyze knowledge gaps');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <Loader2 className="w-6 h-6 animate-spin text-red-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Search className="w-5 h-5 text-red-500" />
+            Knowledge Gaps
+          </h3>
+          <p className="text-xs text-gray-400 mt-1">
+            Questions your agents couldn't answer. Add these to your knowledge base.
+          </p>
+        </div>
+        <button
+          onClick={handleAnalyze}
+          disabled={analyzing || gaps.length === 0}
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white text-sm font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
+          Analyze & Suggest
+        </button>
+      </div>
+
+      {analysis && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="p-4 bg-gradient-to-br from-red-500/10 to-purple-500/10 border border-red-500/20 rounded-xl"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-5 h-5 text-red-400" />
+            <h4 className="font-semibold text-white">AI Content Suggestions</h4>
+          </div>
+          <div className="text-sm text-gray-300 prose prose-invert max-w-none">
+            {analysis.split('\n').map((line, i) => (
+              <p key={i} className="mb-1">{line}</p>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {gaps.length > 0 ? (
+        <div className="overflow-hidden rounded-xl border border-white/10 bg-zinc-900/50">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-gray-400 bg-black/20 uppercase border-b border-white/10">
+              <tr>
+                <th className="px-6 py-3 font-medium">Unanswered Question</th>
+                <th className="px-6 py-3 font-medium text-center">Occurrences</th>
+                <th className="px-6 py-3 font-medium text-right">Last Seen</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {gaps.map((gap) => (
+                <tr key={gap.id} className="hover:bg-white/5 transition-colors">
+                  <td className="px-6 py-4 font-medium text-gray-200">
+                    {gap.question}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold rounded-full bg-red-500/20 text-red-400">
+                      {gap.occurrence_count}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right text-gray-400 whitespace-nowrap">
+                    {new Date(gap.last_seen_at).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="text-center py-10 bg-zinc-900/30 rounded-xl border border-white/5 border-dashed">
+          <Sparkles className="w-8 h-8 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400 text-sm">No knowledge gaps detected yet!</p>
+          <p className="text-gray-500 text-xs mt-1">Your agents are answering everything perfectly.</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function AnalyticsPage() {
   const params = useParams();
   const workspaceId = params.id as string;
@@ -1034,6 +1164,17 @@ export default function AnalyticsPage() {
               </tbody>
             </table>
           </div>
+        </motion.div>
+      </div>
+      {/* Charts Row 4: Knowledge Gaps */}
+      <div className="grid grid-cols-1 gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+          className="bg-zinc-900 border border-white/10 rounded-2xl p-6"
+        >
+          <KnowledgeGapsPanel workspaceId={workspaceId} />
         </motion.div>
       </div>
     </div>

@@ -14,6 +14,7 @@ class GraphState(TypedDict):
     question: str
     workspace_id: UUID
     agent_id: Optional[str]
+    conversation_id: Optional[UUID]
     document_ids: Optional[List[str]]
     # Agent behavior config passed through state
     agent_type: Optional[str]
@@ -83,7 +84,7 @@ async def generate_node(state: GraphState, llm_service: LLMService):
     )
     
     # ── Construct the full prompt with context ──
-    context_str = "\n\n".join(context) if context else "No specific knowledge base context available."
+    context_str = "\n\n".join(context) if context else "No specific knowledge base context available. Note: the user's question might be out of scope."
     
     prompt = f"""{system_prompt}
 
@@ -91,8 +92,7 @@ YOUR NAME: {agent_name}
 
 ─── KNOWLEDGE BASE CONTEXT ───
 The following information is from the company's knowledge base. Use it to answer accurately.
-If the answer is NOT in the context, you may use general knowledge but clearly indicate this.
-If you truly don't know, be honest about it.
+If the answer is NOT in the context, do not make up facts. Address the user politely.
 
 {context_str}
 
@@ -106,6 +106,7 @@ User: {question}
 
 class RAGGraph:
     def __init__(self, session):
+        self.session = session
         self.retriever = Retriever(session)
         self.llm_service = LLMService()
         self.workflow = self._build_graph()
@@ -134,6 +135,7 @@ class RAGGraph:
         question: str, 
         workspace_id: UUID, 
         agent_id: Optional[str] = None, 
+        conversation_id: Optional[UUID] = None,
         document_ids: Optional[List[str]] = None,
         agent_type: str = "custom",
         behavior_settings: Optional[Dict[str, Any]] = None,
@@ -147,6 +149,7 @@ class RAGGraph:
             "question": question,
             "workspace_id": workspace_id,
             "agent_id": agent_id,
+            "conversation_id": conversation_id,
             "document_ids": document_ids,
             "context": [],
             # Agent behavior
@@ -160,4 +163,19 @@ class RAGGraph:
         }
         
         result = await self.workflow.ainvoke(initial_state)
+        
+        if not result.get("context"):
+            try:
+                from app.db.repositories.analytics_repo import AnalyticsRepository
+                analytics_repo = AnalyticsRepository(self.session)
+                agent_uuid = UUID(agent_id) if agent_id else None
+                await analytics_repo.track_unanswered_question(
+                    workspace_id=workspace_id,
+                    question=question,
+                    agent_id=agent_uuid,
+                    conversation_id=conversation_id
+                )
+            except Exception as e:
+                print(f"Failed to track unanswered question: {e}")
+                
         return result["messages"][-1].content

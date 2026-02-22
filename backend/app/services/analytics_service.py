@@ -446,3 +446,67 @@ class AnalyticsService:
             })
         
         return {"distribution": distribution}
+
+    async def get_unanswered_questions(
+        self,
+        workspace_id: UUID,
+        limit: int = 50,
+        status: str = "unresolved",
+    ) -> List[Dict[str, Any]]:
+        from app.db.models.unanswered_question import UnansweredQuestion
+        
+        query = (
+            select(UnansweredQuestion)
+            .where(
+                and_(
+                    UnansweredQuestion.workspace_id == workspace_id,
+                    UnansweredQuestion.status == status
+                )
+            )
+            .order_by(UnansweredQuestion.occurrence_count.desc())
+            .limit(limit)
+        )
+        
+        result = await self.session.execute(query)
+        questions = result.scalars().all()
+        
+        return [
+            {
+                "id": str(q.id),
+                "question": q.question,
+                "occurrence_count": q.occurrence_count,
+                "first_seen_at": q.first_seen_at.isoformat(),
+                "last_seen_at": q.last_seen_at.isoformat(),
+            }
+            for q in questions
+        ]
+
+    async def analyze_knowledge_gaps(self, questions: List[Dict[str, Any]]) -> str:
+        """Use LLM to identify patterns and suggest new content."""
+        if not questions:
+            return "No unanswered questions found to analyze."
+            
+        questions_text = "\n".join([f"- {q['question']} (asked {q['occurrence_count']} times)" for q in questions])
+        
+        prompt = f"""
+        You are an expert knowledge base manager and support architect.
+        Below is a list of questions from users that the current AI agent failed to answer due to missing knowledge.
+        
+        UNANSWERED QUESTIONS:
+        {questions_text}
+        
+        Your task:
+        1. Identify the top 2-3 common themes or patterns in what users are asking.
+        2. Provide 3-5 specific "Recommended FAQ Questions" with suggested brief answers that the human admin should add to their knowledge base to solve these gaps.
+        
+        Format the output nicely using Markdown. Be concise, actionable, and professional.
+        """
+        
+        try:
+            from app.services.llm_service import LLMService
+            llm = LLMService()
+            response = await llm.generate(prompt, temperature=0.3)
+            return response.strip()
+        except Exception as e:
+            print(f"Failed to analyze knowledge gaps: {e}")
+            return "Analysis failed due to an error connecting to the AI service."

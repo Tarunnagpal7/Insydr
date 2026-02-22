@@ -358,6 +358,7 @@ async def widget_chat(
             question=request.message,
             workspace_id=agent.workspace_id,
             agent_id=str(agent.id),
+            conversation_id=conversation.id,
             document_ids=document_ids,
             agent_type=agent.agent_type,
             behavior_settings=behavior_settings,

@@ -213,3 +213,48 @@ async def get_response_time_distribution(
         start_date=start_date,
         end_date=end_date
     )
+
+class UnansweredQuestionResponse(BaseModel):
+    id: str
+    question: str
+    occurrence_count: int
+    first_seen_at: str
+    last_seen_at: str
+
+class GapAnalysisResponse(BaseModel):
+    analysis: str
+
+@router.get("/knowledge-gaps", response_model=List[UnansweredQuestionResponse])
+async def get_knowledge_gaps(
+    workspace_id: UUID,
+    limit: int = 50,
+    status: str = "unresolved",
+    current_user: User = Depends(deps.get_current_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+):
+    """
+    Get unanswered questions (knowledge gaps) for a workspace.
+    """
+    return await service.get_unanswered_questions(
+        workspace_id=workspace_id,
+        limit=limit,
+        status=status,
+    )
+
+@router.post("/knowledge-gaps/analyze", response_model=GapAnalysisResponse)
+async def analyze_knowledge_gaps(
+    workspace_id: UUID,
+    limit: int = 50,
+    current_user: User = Depends(deps.get_current_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+):
+    """
+    Use AI to analyze top knowledge gaps and suggest FAQ additions.
+    """
+    questions = await service.get_unanswered_questions(
+        workspace_id=workspace_id,
+        limit=limit,
+        status="unresolved",
+    )
+    analysis = await service.analyze_knowledge_gaps(questions)
+    return {"analysis": analysis}

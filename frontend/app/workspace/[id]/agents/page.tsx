@@ -15,7 +15,7 @@ import {
 import { useAppDispatch, useAppSelector } from '@/src/store/hooks';
 import { fetchAgents, createAgent } from '@/src/store/agent.store';
 import { CreateAgentPayload, getAgentLimit, AgentLimitInfo, getAgentTypes, AgentTypeInfo, BehaviorSettings } from '@/src/features/agents/agents.service';
-import { getDocuments, uploadDocument, Document } from '@/src/features/knowledge/knowledge.service';
+import { getDocuments, getCollections, uploadDocument, Document, Collection } from '@/src/features/knowledge/knowledge.service';
 import toast from 'react-hot-toast';
 import { Dialog, Tab } from '@headlessui/react';
 import classNames from 'classnames';
@@ -73,8 +73,10 @@ export default function AgentsPage() {
   const [knowledgeSource, setKnowledgeSource] = useState<'upload' | 'select'>('upload');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [existingDocs, setExistingDocs] = useState<Document[]>([]);
+  const [existingCollections, setExistingCollections] = useState<Collection[]>([]);
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  const [expandedCreateCols, setExpandedCreateCols] = useState<Set<string>>(new Set());
   
   // Allowed Domains State
   const [allowedDomains, setAllowedDomains] = useState<string>('');
@@ -105,16 +107,33 @@ export default function AgentsPage() {
     }
   };
 
-  // Fetch docs when modal opens
+  // Fetch docs and collections when modal opens
   useEffect(() => {
       if (isCreateModalOpen && workspaceId) {
           setIsLoadingDocs(true);
-          getDocuments(workspaceId)
-              .then(setExistingDocs)
-              .catch(() => toast.error("Failed to load documents"))
-              .finally(() => setIsLoadingDocs(false));
+          Promise.all([
+              getDocuments(workspaceId),
+              getCollections(workspaceId),
+          ]).then(([docs, cols]) => {
+              setExistingDocs(docs);
+              setExistingCollections(cols);
+          }).catch(() => toast.error("Failed to load documents"))
+          .finally(() => setIsLoadingDocs(false));
       }
   }, [isCreateModalOpen, workspaceId]);
+
+  const DEFAULT_COLLECTION_ID = "00000000-0000-0000-0000-000000000000";
+
+  const toggleCollectionDocs = (colId: string) => {
+    const colDocIds = existingDocs.filter(d => d.collection_id === colId).map(d => d.id);
+    const allSelected = colDocIds.every(id => selectedDocIds.includes(id));
+    if (allSelected) {
+      setSelectedDocIds(prev => prev.filter(id => !colDocIds.includes(id)));
+    } else {
+      const newIds = colDocIds.filter(id => !selectedDocIds.includes(id));
+      setSelectedDocIds(prev => [...prev, ...newIds]);
+    }
+  };
 
   // When agent type is selected, auto-apply defaults
   const handleTypeSelect = (typeKey: string) => {
@@ -582,14 +601,54 @@ export default function AgentsPage() {
                                 </div>
                             </Tab.Panel>
                             <Tab.Panel>
-                                <div className="border border-white/10 rounded-lg bg-black/20 max-h-48 overflow-y-auto">
+                                <div className="border border-white/10 rounded-lg bg-black/20 max-h-64 overflow-y-auto">
                                     {isLoadingDocs ? (
                                         <div className="p-4 text-center text-gray-500">Loading documents...</div>
                                     ) : existingDocs.length === 0 ? (
                                         <div className="p-4 text-center text-gray-500">No documents found in knowledge base.</div>
                                     ) : (
                                         <div className="divide-y divide-white/5">
-                                            {existingDocs.map(doc => (
+                                            {/* Collections */}
+                                            {existingCollections.filter(col => existingDocs.some(d => d.collection_id === col.id)).map(col => {
+                                                const colDocs = existingDocs.filter(d => d.collection_id === col.id);
+                                                const allSelected = colDocs.every(d => selectedDocIds.includes(d.id));
+                                                const isExpanded = expandedCreateCols.has(col.id);
+                                                return (
+                                                    <div key={col.id}>
+                                                        <div className="p-3 flex items-center gap-3 hover:bg-white/5 transition-colors">
+                                                            <div 
+                                                                onClick={() => toggleCollectionDocs(col.id)}
+                                                                className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer ${allSelected ? 'bg-red-500 border-red-500 text-white' : 'border-gray-600'}`}
+                                                            >
+                                                                {allSelected && <CheckCircleIcon className="w-4 h-4" />}
+                                                            </div>
+                                                            <button onClick={() => setExpandedCreateCols(prev => { const n = new Set(prev); n.has(col.id) ? n.delete(col.id) : n.add(col.id); return n; })} className="flex items-center gap-2 flex-1 text-left">
+                                                                <span className="text-gray-400 text-xs">{isExpanded ? '▾' : '▸'}</span>
+                                                                <span className="text-sm font-medium text-white">📁 {col.name}</span>
+                                                                <span className="text-xs text-gray-500">{colDocs.length} docs</span>
+                                                            </button>
+                                                        </div>
+                                                        {isExpanded && colDocs.map(doc => (
+                                                            <div 
+                                                                key={doc.id}
+                                                                onClick={() => toggleDocSelection(doc.id)}
+                                                                className={`p-2.5 pl-12 flex items-center gap-3 cursor-pointer hover:bg-white/5 transition-colors ${selectedDocIds.includes(doc.id) ? 'bg-red-500/10' : ''}`}
+                                                            >
+                                                                <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedDocIds.includes(doc.id) ? 'bg-red-500 border-red-500 text-white' : 'border-gray-600'}`}>
+                                                                    {selectedDocIds.includes(doc.id) && <CheckCircleIcon className="w-3 h-3" />}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-sm text-white truncate">{doc.title}</p>
+                                                                    <p className="text-xs text-gray-500">{doc.source_type}</p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {/* Standalone docs */}
+                                            {existingDocs.filter(d => !d.collection_id || d.collection_id === DEFAULT_COLLECTION_ID).map(doc => (
                                                 <div 
                                                     key={doc.id} 
                                                     onClick={() => toggleDocSelection(doc.id)}

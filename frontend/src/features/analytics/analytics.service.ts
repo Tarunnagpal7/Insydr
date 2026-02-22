@@ -58,6 +58,18 @@ export interface ResponseTimeDistribution {
   distribution: ResponseTimeBucket[];
 }
 
+export interface UnansweredQuestion {
+  id: string;
+  question: string;
+  occurrence_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface GapAnalysis {
+  analysis: string;
+}
+
 // API Query Params
 export interface AnalyticsQueryParams {
   workspace_id: string;
@@ -105,6 +117,20 @@ export const getResponseTimeDistribution = async (
   params: AnalyticsQueryParams
 ): Promise<ResponseTimeDistribution> => {
   const response = await apiClient.get<ResponseTimeDistribution>('/analytics/response-time-distribution', { params });
+  return response.data;
+};
+
+export const getKnowledgeGaps = async (
+  params: AnalyticsQueryParams & { limit?: number; status?: string }
+): Promise<UnansweredQuestion[]> => {
+  const response = await apiClient.get<UnansweredQuestion[]>('/analytics/knowledge-gaps', { params });
+  return response.data;
+};
+
+export const analyzeKnowledgeGaps = async (
+  params: AnalyticsQueryParams & { limit?: number }
+): Promise<GapAnalysis> => {
+  const response = await apiClient.post<GapAnalysis>('/analytics/knowledge-gaps/analyze', null, { params });
   return response.data;
 };
 
