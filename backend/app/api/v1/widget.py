@@ -152,6 +152,17 @@ async def widget_init(
     
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+    
+    # Check if agent is active (inactive agents should not be visible on websites)
+    if not agent.is_active:
+        return WidgetInitResponse(
+            agent_id=str(agent.id),
+            agent_name=agent.name,
+            widget_settings={},
+            session_id="",
+            allowed=False,
+            error="This agent is currently inactive and not available for chat."
+        )
         
     hostname = extract_hostname(request.page_url)
     
@@ -328,6 +339,16 @@ async def widget_chat(
     if agent.configuration and "knowledge_sources" in agent.configuration:
         document_ids = agent.configuration["knowledge_sources"]
     
+    # Extract behavior settings for dynamic prompt
+    behavior_settings = agent.behavior_settings or {}
+    custom_prompt = ""
+    if agent.configuration and "custom_prompt" in agent.configuration:
+        custom_prompt = agent.configuration["custom_prompt"]
+    
+    # Extract response config and conversation rules
+    response_config = agent.response_config or {}
+    conversation_rules = agent.conversation_rules or {}
+    
     import time
     import random
     
@@ -337,7 +358,13 @@ async def widget_chat(
             question=request.message,
             workspace_id=agent.workspace_id,
             agent_id=str(agent.id),
-            document_ids=document_ids
+            document_ids=document_ids,
+            agent_type=agent.agent_type,
+            behavior_settings=behavior_settings,
+            custom_prompt=custom_prompt,
+            agent_name=agent.name,
+            response_config=response_config,
+            conversation_rules=conversation_rules,
         )
         status = "success"
     except Exception as e:
@@ -467,3 +494,154 @@ async def widget_get_config(
             }
         }
     }
+
+
+# ============ LEAD EMAIL CTA ============
+
+class LeadEmailRequest(BaseModel):
+    """Visitor submits their contact info via the widget CTA"""
+    agent_id: str
+    session_id: str
+    visitor_name: Optional[str] = None
+    visitor_email: str
+    visitor_phone: Optional[str] = None
+    visitor_message: Optional[str] = None
+
+
+@router.post("/send-lead-email")
+async def send_lead_email(
+    request: LeadEmailRequest,
+    db: AsyncSession = Depends(deps.get_db),
+):
+    """
+    Public endpoint — visitor clicks 'Send Email' in widget.
+    
+    Sends a lead notification email to the agent owner's verified CTA email
+    with the visitor's info and a conversation summary.
+    """
+    try:
+        agent_id = UUID(request.agent_id)
+        session_id = UUID(request.session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+    
+    # Fetch agent
+    stmt = select(Agent).where(Agent.id == agent_id)
+    result = await db.execute(stmt)
+    agent = result.scalar_one_or_none()
+    
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    # Check if agent has a verified CTA email
+    rules = agent.conversation_rules or {}
+    cta_email = rules.get("cta_email")
+    cta_verified = rules.get("cta_email_verified", False)
+    
+    if not cta_email or not cta_verified:
+        raise HTTPException(
+            status_code=400, 
+            detail="This agent does not have a verified contact email configured."
+        )
+    
+    # Fetch conversation messages to build summary
+    msgs_stmt = (
+        select(Message)
+        .where(Message.conversation_id == session_id)
+        .order_by(Message.created_at)
+    )
+    msgs_result = await db.execute(msgs_stmt)
+    messages = msgs_result.scalars().all()
+    
+    # Fetch conversation metadata
+    conv_stmt = select(Conversation).where(Conversation.id == session_id)
+    conv_result = await db.execute(conv_stmt)
+    conversation = conv_result.scalar_one_or_none()
+    
+    page_url = conversation.referrer_url if conversation else "Unknown"
+    
+    # Build formatted conversation HTML
+    visitor_name = request.visitor_name or "Anonymous Visitor"
+    visitor_phone = request.visitor_phone or "Not provided"
+    visitor_msg = request.visitor_message or ""
+    
+    conv_html_lines = []
+    for msg in messages:
+        role_label = "🧑 Visitor" if msg.role == "user" else f"🤖 {agent.name}"
+        bg_color = "#f0f0f0" if msg.role == "user" else "#e8f4fd"
+        conv_html_lines.append(
+            f'<div style="background:{bg_color};padding:10px 14px;border-radius:8px;margin-bottom:8px;">'
+            f'<strong>{role_label}:</strong><br/>{msg.content}</div>'
+        )
+    
+    conv_html = "\n".join(conv_html_lines) if conv_html_lines else "<p>No conversation history available.</p>"
+    
+    visitor_msg_block = ""
+    if visitor_msg:
+        visitor_msg_block = (
+            '<div style="margin:16px 0;padding:12px 16px;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:4px;">'
+            f'<strong>Message from visitor:</strong><br/>{visitor_msg}</div>'
+        )
+    
+    html_body = f"""
+    <div style="font-family:'Segoe UI',Tahoma,sans-serif;max-width:600px;margin:0 auto;color:#333;">
+        <div style="background:linear-gradient(135deg,#EF4444,#991B1B);padding:24px 32px;border-radius:12px 12px 0 0;">
+            <h1 style="color:white;margin:0;font-size:22px;">🔥 New Lead from {agent.name}</h1>
+            <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px;">A visitor wants to connect with you</p>
+        </div>
+        <div style="background:white;padding:24px 32px;border:1px solid #e5e7eb;">
+            <h2 style="font-size:16px;color:#111;margin:0 0 16px;">📋 Visitor Information</h2>
+            <table style="width:100%;border-collapse:collapse;">
+                <tr><td style="padding:8px 0;color:#6b7280;width:120px;">Name</td><td style="padding:8px 0;font-weight:600;">{visitor_name}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Email</td><td style="padding:8px 0;"><a href="mailto:{request.visitor_email}" style="color:#EF4444;">{request.visitor_email}</a></td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Phone</td><td style="padding:8px 0;">{visitor_phone}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Page URL</td><td style="padding:8px 0;font-size:13px;">{page_url}</td></tr>
+            </table>
+            {visitor_msg_block}
+        </div>
+        <div style="background:#f9fafb;padding:24px 32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
+            <h2 style="font-size:16px;color:#111;margin:0 0 16px;">💬 Conversation Summary</h2>
+            {conv_html}
+        </div>
+        <div style="text-align:center;padding:20px;color:#9ca3af;font-size:12px;">
+            Powered by <strong>Insydr</strong> — AI-powered chatbots
+        </div>
+    </div>
+    """
+    
+    # Send lead email
+    from app.services.email_service import EmailService
+    from fastapi_mail import MessageSchema, MessageType
+    
+    email_service = EmailService()
+    message = MessageSchema(
+        subject=f"🔥 New Lead: {visitor_name} via {agent.name}",
+        recipients=[cta_email],
+        body=html_body,
+        subtype=MessageType.html,
+    )
+    
+    try:
+        await email_service.fastmail.send_message(message)
+    except Exception as e:
+        print(f"Failed to send lead email: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send lead email.")
+    
+    # Track analytics
+    event = AnalyticsEvent(
+        workspace_id=agent.workspace_id,
+        agent_id=agent.id,
+        conversation_id=session_id,
+        event_type="lead_email_sent",
+        event_data={
+            "visitor_name": visitor_name,
+            "visitor_email": request.visitor_email,
+            "visitor_phone": visitor_phone,
+            "page_url": page_url,
+        }
+    )
+    db.add(event)
+    await db.commit()
+    
+    return {"status": "ok", "message": "Lead email sent successfully"}
+

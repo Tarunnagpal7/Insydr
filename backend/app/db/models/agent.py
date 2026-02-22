@@ -1,4 +1,4 @@
-from sqlalchemy import String, DateTime, JSON
+from sqlalchemy import String, DateTime, JSON, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -14,8 +14,11 @@ class Agent(UUIDBase, Base):
 
     name: Mapped[str]
     description: Mapped[str | None]
+    avatar_url: Mapped[str | None]
+    avatar_public_id: Mapped[str | None]  # Cloudinary public_id for deletion
     agent_type: Mapped[str]
-    status: Mapped[str]
+    status: Mapped[str]  # "active" or "inactive" — inactive agents are hidden from widget
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)  # Controls widget visibility
     version: Mapped[str]
 
     configuration: Mapped[dict | None] = mapped_column(JSON)

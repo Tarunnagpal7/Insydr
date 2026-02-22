@@ -1,15 +1,47 @@
+import os
+import tempfile
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from app.api import deps
-from app.api.schemas.agent import AgentCreate, AgentResponse, ChatRequest, ChatResponse
+from app.api.schemas.agent import AgentCreate, AgentResponse, AgentUpdate, ChatRequest, ChatResponse
 from app.services.agent_service import AgentService
 from app.db.models.user import User
 from app.rag.graph import RAGGraph
 from app.rag.retriever import Retriever
+from app.core.agent_templates import get_all_agent_types
 
 router = APIRouter()
+
+# ============ AGENT TYPES ============
+
+@router.get("/types")
+async def list_agent_types():
+    """
+    Returns all available agent type templates with their metadata.
+    Used by frontend to render the type selection cards.
+    """
+    return get_all_agent_types()
+
+
+# ============ AGENT LIMIT ============
+
+@router.get("/limit")
+async def get_agent_limit(
+    workspace_id: UUID,
+    current_user: User = Depends(deps.get_current_user),
+    service: AgentService = Depends(deps.get_agent_service),
+):
+    """
+    Get the current agent count and limit for a workspace.
+    Used by frontend to display "2 / 5 agents" and control the create button.
+    """
+    limit_info = await service.check_agent_limit(workspace_id)
+    return limit_info
+
+
+# ============ CRUD ============
 
 @router.post("/", response_model=AgentResponse)
 async def create_agent(
@@ -20,8 +52,8 @@ async def create_agent(
 ):
     """
     Create a new agent in a workspace.
+    Enforces plan-based agent limits.
     """
-    # Verify workspace access (TODO: strict permission check)
     try:
         return await service.create_agent(
             workspace_id=workspace_id,
@@ -33,6 +65,9 @@ async def create_agent(
             document_ids=agent_in.document_ids,
             allowed_domains=agent_in.allowed_domains
         )
+    except ValueError as e:
+        # Plan limit exceeded
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -70,14 +105,11 @@ async def get_agent_widget_config(
 ):
     """
     Get agent configuration for public widget.
-    TODO: Add domain allowlist check here.
     """
     agent = await service.get_agent(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     return agent
-
-from app.api.schemas.agent import AgentUpdate
 
 @router.patch("/{agent_id}", response_model=AgentResponse)
 async def update_agent(
@@ -94,15 +126,16 @@ async def update_agent(
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
         
-        # Check permissions...
-        
         updated_agent = await service.update_agent(
             agent_id, 
             name=agent_update.name,
             description=agent_update.description,
             configuration=agent_update.configuration,
             behavior_settings=agent_update.behavior_settings,
+            response_config=agent_update.response_config,
+            conversation_rules=agent_update.conversation_rules,
             status=agent_update.status,
+            is_active=agent_update.is_active,
             allowed_domains=agent_update.allowed_domains
         )
         return updated_agent
@@ -113,6 +146,215 @@ async def update_agent(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to update agent: {str(e)}")
 
+
+@router.delete("/{agent_id}", status_code=204)
+async def delete_agent(
+    agent_id: UUID,
+    current_user: User = Depends(deps.get_current_user),
+    service: AgentService = Depends(deps.get_agent_service),
+):
+    """Delete an agent."""
+    agent = await service.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    # Delete avatar from Cloudinary if it exists
+    if agent.avatar_public_id:
+        try:
+            from app.services.cloudinary_service import delete_file_async
+            await delete_file_async(agent.avatar_public_id, resource_type="image")
+        except Exception as e:
+            print(f"Warning: Failed to delete avatar during agent deletion: {e}")
+    
+    await service.agent_repo.delete(agent)
+
+
+# ============ AVATAR MANAGEMENT ============
+
+@router.post("/{agent_id}/avatar", response_model=AgentResponse)
+async def upload_agent_avatar(
+    agent_id: UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(deps.get_current_user),
+    service: AgentService = Depends(deps.get_agent_service),
+):
+    """
+    Upload or replace an agent's avatar.
+    If an avatar already exists, the old one is deleted from Cloudinary before uploading the new one.
+    Accepts: JPEG, PNG, WebP, GIF (max 5MB)
+    """
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid file type '{file.content_type}'. Allowed: JPEG, PNG, WebP, GIF"
+        )
+    
+    # Validate file size (5MB max)
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Avatar image must be under 5MB")
+    
+    # Save to temp file
+    suffix = os.path.splitext(file.filename or "avatar.png")[1]
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+    
+    try:
+        agent = await service.update_avatar(agent_id, tmp_path)
+        return agent
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to upload avatar: {str(e)}")
+    finally:
+        # Clean up temp file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@router.delete("/{agent_id}/avatar", response_model=AgentResponse)
+async def delete_agent_avatar(
+    agent_id: UUID,
+    current_user: User = Depends(deps.get_current_user),
+    service: AgentService = Depends(deps.get_agent_service),
+):
+    """
+    Remove an agent's avatar and delete it from Cloudinary.
+    """
+    try:
+        agent = await service.delete_avatar(agent_id)
+        return agent
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete avatar: {str(e)}")
+
+
+# ============ STATUS TOGGLE ============
+
+@router.patch("/{agent_id}/toggle-active", response_model=AgentResponse)
+async def toggle_agent_active(
+    agent_id: UUID,
+    current_user: User = Depends(deps.get_current_user),
+    service: AgentService = Depends(deps.get_agent_service),
+):
+    """
+    Toggle an agent's active state.
+    Active agents are visible to the widget on websites.
+    Inactive agents are hidden from the widget.
+    """
+    agent = await service.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    new_state = not agent.is_active
+    updated = await service.toggle_active(agent_id, new_state)
+    return updated
+
+
+# ============ CTA EMAIL VERIFICATION ============
+
+# Simple in-memory OTP store: { "agent_id:email": { "otp": "123456", "expires": datetime } }
+_cta_otp_store: dict = {}
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class CTAEmailRequest(PydanticBaseModel):
+    email: str
+
+class CTAOTPVerifyRequest(PydanticBaseModel):
+    email: str
+    otp: str
+
+@router.post("/{agent_id}/cta-email/send-otp")
+async def send_cta_email_otp(
+    agent_id: UUID,
+    request: CTAEmailRequest,
+    current_user: User = Depends(deps.get_current_user),
+    service: AgentService = Depends(deps.get_agent_service),
+):
+    """
+    Send an OTP verification code to the CTA email.
+    The agent owner sets an email where they want to receive leads.
+    """
+    agent = await service.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    from app.security.auth import generate_otp
+    from app.services.email_service import EmailService
+    from datetime import datetime, timedelta
+    
+    otp_code = generate_otp()
+    key = f"{agent_id}:{request.email}"
+    _cta_otp_store[key] = {
+        "otp": otp_code,
+        "expires": datetime.utcnow() + timedelta(minutes=10),
+    }
+    
+    email_service = EmailService()
+    await email_service.send_email(
+        subject="Verify your CTA Email — Insydr",
+        recipients=[request.email],
+        template_name="verification.html",
+        template_body={
+            "name": current_user.full_name or "there",
+            "otp_code": otp_code,
+            "expiry_minutes": 10,
+        }
+    )
+    
+    return {"message": "OTP sent successfully", "email": request.email}
+
+
+@router.post("/{agent_id}/cta-email/verify-otp")
+async def verify_cta_email_otp(
+    agent_id: UUID,
+    request: CTAOTPVerifyRequest,
+    current_user: User = Depends(deps.get_current_user),
+    service: AgentService = Depends(deps.get_agent_service),
+):
+    """
+    Verify the OTP and save the CTA email to the agent's conversation_rules.
+    """
+    agent = await service.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    from datetime import datetime
+    
+    key = f"{agent_id}:{request.email}"
+    entry = _cta_otp_store.get(key)
+    
+    if not entry:
+        raise HTTPException(status_code=400, detail="No OTP found for this email. Please request a new one.")
+    
+    if datetime.utcnow() > entry["expires"]:
+        del _cta_otp_store[key]
+        raise HTTPException(status_code=400, detail="OTP has expired. Please request a new one.")
+    
+    if entry["otp"] != request.otp:
+        raise HTTPException(status_code=400, detail="Invalid OTP. Please try again.")
+    
+    # OTP verified — save to agent conversation_rules
+    del _cta_otp_store[key]
+    
+    rules = agent.conversation_rules or {}
+    rules["cta_email"] = request.email
+    rules["cta_email_verified"] = True
+    
+    await service.update_agent(agent_id, conversation_rules=rules)
+    
+    return {"message": "Email verified successfully", "email": request.email, "verified": True}
+
+
+
+
 @router.post("/{agent_id}/chat", response_model=ChatResponse)
 async def chat_agent(
     agent_id: UUID,
@@ -122,7 +364,7 @@ async def chat_agent(
     db_session = Depends(deps.get_db),
 ):
     """
-    Chat with an agent.
+    Chat with an agent (playground).
     """
     agent = await service.get_agent(agent_id)
     if not agent:
@@ -136,18 +378,33 @@ async def chat_agent(
     if agent.configuration and "knowledge_sources" in agent.configuration:
         document_ids = agent.configuration["knowledge_sources"]
     
+    # Extract behavior settings
+    behavior_settings = agent.behavior_settings or {}
+    custom_prompt = ""
+    if agent.configuration and "custom_prompt" in agent.configuration:
+        custom_prompt = agent.configuration["custom_prompt"]
+    
+    # Extract response config and conversation rules
+    response_config = agent.response_config or {}
+    conversation_rules = agent.conversation_rules or {}
+    
     # Process
     try:
         response = await rag.process_message(
             question=chat_request.message, 
             workspace_id=agent.workspace_id,
             agent_id=str(agent.id),
-            document_ids=document_ids
+            document_ids=document_ids,
+            agent_type=agent.agent_type,
+            behavior_settings=behavior_settings,
+            custom_prompt=custom_prompt,
+            agent_name=agent.name,
+            response_config=response_config,
+            conversation_rules=conversation_rules,
         )
         return {"response": response}
     except Exception as e:
         print(f"Chat error: {e}")
         import traceback
         traceback.print_exc()
-        # Return generic error details in dev
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,10 +1,11 @@
-from typing import Annotated, TypedDict, List, Optional
+from typing import Annotated, TypedDict, List, Optional, Dict, Any
 from uuid import UUID
 
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langgraph.graph import StateGraph, END
 from app.services.llm_service import LLMService
 from app.rag.retriever import Retriever
+from app.core.agent_templates import build_system_prompt
 
 # Define State
 class GraphState(TypedDict):
@@ -14,6 +15,14 @@ class GraphState(TypedDict):
     workspace_id: UUID
     agent_id: Optional[str]
     document_ids: Optional[List[str]]
+    # Agent behavior config passed through state
+    agent_type: Optional[str]
+    behavior_settings: Optional[Dict[str, Any]]
+    custom_prompt: Optional[str]
+    agent_name: Optional[str]
+    # Response config and conversation rules
+    response_config: Optional[Dict[str, Any]]
+    conversation_rules: Optional[Dict[str, Any]]
 
 async def retrieve_node(state: GraphState, retriever: Retriever):
     """
@@ -39,27 +48,60 @@ async def retrieve_node(state: GraphState, retriever: Retriever):
 
 async def generate_node(state: GraphState, llm_service: LLMService):
     """
-    Generate answer using RAG.
+    Generate answer using RAG with dynamic system prompt based on agent config.
     """
     question = state["question"]
     context = state["context"]
     
-    # Construct prompt
-    context_str = "\n\n".join(context)
-    prompt = f"""
-    You are a helpful assistant. Use the following context to answer the user's question.
-    If the answer is not in the context, say you don't know.
+    # ── Extract agent behavior config ──
+    agent_type = state.get("agent_type", "custom") or "custom"
+    behavior = state.get("behavior_settings") or {}
+    custom_prompt = state.get("custom_prompt", "") or ""
+    agent_name = state.get("agent_name", "Assistant") or "Assistant"
+    response_config = state.get("response_config") or {}
+    conversation_rules = state.get("conversation_rules") or {}
     
-    Context:
-    {context_str}
+    tone = behavior.get("tone", "friendly")
+    response_style = behavior.get("response_style", "conversational")
+    temperature = behavior.get("temperature", 0.5)
     
-    Question:
-    {question}
+    # Ensure temperature is a valid float
+    try:
+        temperature = float(temperature)
+        temperature = max(0.0, min(1.0, temperature))
+    except (ValueError, TypeError):
+        temperature = 0.5
     
-    Answer:
-    """
+    # ── Build system prompt ──
+    system_prompt = build_system_prompt(
+        agent_type=agent_type,
+        tone=tone,
+        response_style=response_style,
+        custom_prompt=custom_prompt,
+        response_config=response_config,
+        conversation_rules=conversation_rules,
+    )
     
-    response = await llm_service.generate(prompt)
+    # ── Construct the full prompt with context ──
+    context_str = "\n\n".join(context) if context else "No specific knowledge base context available."
+    
+    prompt = f"""{system_prompt}
+
+YOUR NAME: {agent_name}
+
+─── KNOWLEDGE BASE CONTEXT ───
+The following information is from the company's knowledge base. Use it to answer accurately.
+If the answer is NOT in the context, you may use general knowledge but clearly indicate this.
+If you truly don't know, be honest about it.
+
+{context_str}
+
+─── CONVERSATION ───
+User: {question}
+
+{agent_name}:"""
+    
+    response = await llm_service.generate(prompt, temperature=temperature)
     return {"messages": [AIMessage(content=response)]}
 
 class RAGGraph:
@@ -70,17 +112,6 @@ class RAGGraph:
 
     def _build_graph(self):
         workflow = StateGraph(GraphState)
-        
-        # Add Nodes
-        # Wrapper functions to handle async calls properly if needed, but LangGraph supports async nodes.
-        # The issue "Expected dict, got <coroutine...>" suggests the lambda is returning a coroutine but LangGraph might be expecting the node function to be awaited or defined differently if using lambdas.
-        # It's better to pass the partial function or just the function and inject dependencies differently,
-        # OR define the node functions as just taking 'state' and accessing dependencies from self if possible,
-        # OR defining them as sync wrappers that return the coroutine (but LangGraph handles async def).
-
-        # The lambda `lambda state: retrieve_node(state, self.retriever)` returns a coroutine object when called.
-        # If LangGraph executes this sync lambda, it gets a coroutine back and might not await it if it expects a dict immediately.
-        # Let's wrap them in async functions or use functools.partial.
         
         async def call_retrieve(state):
             return await retrieve_node(state, self.retriever)
@@ -98,14 +129,34 @@ class RAGGraph:
         
         return workflow.compile()
 
-    async def process_message(self, question: str, workspace_id: UUID, agent_id: Optional[str] = None, document_ids: Optional[List[str]] = None):
+    async def process_message(
+        self, 
+        question: str, 
+        workspace_id: UUID, 
+        agent_id: Optional[str] = None, 
+        document_ids: Optional[List[str]] = None,
+        agent_type: str = "custom",
+        behavior_settings: Optional[Dict[str, Any]] = None,
+        custom_prompt: str = "",
+        agent_name: str = "Assistant",
+        response_config: Optional[Dict[str, Any]] = None,
+        conversation_rules: Optional[Dict[str, Any]] = None,
+    ):
         initial_state = {
             "messages": [HumanMessage(content=question)],
             "question": question,
             "workspace_id": workspace_id,
             "agent_id": agent_id,
             "document_ids": document_ids,
-            "context": []
+            "context": [],
+            # Agent behavior
+            "agent_type": agent_type,
+            "behavior_settings": behavior_settings or {},
+            "custom_prompt": custom_prompt,
+            "agent_name": agent_name,
+            # Response config and guardrails
+            "response_config": response_config or {},
+            "conversation_rules": conversation_rules or {},
         }
         
         result = await self.workflow.ainvoke(initial_state)

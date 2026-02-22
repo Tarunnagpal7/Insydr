@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Agent, getAgent, updateAgent, chatWithAgent, deleteAgent } from '@/src/features/agents/agents.service';
+import { Agent, getAgent, updateAgent, chatWithAgent, deleteAgent, uploadAgentAvatar, deleteAgentAvatar, toggleAgentActive, sendCtaEmailOtp, verifyCtaEmailOtp, ResponseConfig, ConversationRules } from '@/src/features/agents/agents.service';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Send, Sparkles, Bot, Save, Code, Settings, MessageSquare, Layout, Palette, Zap, Copy, Globe, Shield, CheckCircle, Terminal, ExternalLink, Layers, X, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, Bot, Save, Code, Settings, MessageSquare, Layout, Palette, Zap, Copy, Globe, Shield, CheckCircle, Terminal, ExternalLink, Layers, X, AlertCircle, Camera, Trash2, Power } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Tab } from '@headlessui/react';
 import classNames from 'classnames';
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
   id: string;
@@ -18,9 +19,9 @@ interface Message {
 interface WidgetSettings {
   theme: 'light' | 'dark' | 'auto';
   primaryColor: string;
-  position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+  position: 'bottom-right' | 'bottom-left';
   welcomeMessage: string;
-  agentName: string;
+
   showPoweredBy: boolean;
 }
 
@@ -29,7 +30,7 @@ const DEFAULT_WIDGET_SETTINGS: WidgetSettings = {
   primaryColor: '#EF4444', // Red-500
   position: 'bottom-right',
   welcomeMessage: 'Hello! How can I help you today?',
-  agentName: 'Support Agent',
+
   showPoweredBy: true,
 };
 
@@ -49,6 +50,24 @@ export default function AgentDetailsPage() {
   // Settings State
   const [domainInput, setDomainInput] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Avatar State
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  
+  // CTA Email State
+  const [ctaEmailInput, setCtaEmailInput] = useState('');
+  const [ctaOtpInput, setCtaOtpInput] = useState('');
+  const [ctaOtpSent, setCtaOtpSent] = useState(false);
+  const [ctaSending, setCtaSending] = useState(false);
+  const [ctaVerifying, setCtaVerifying] = useState(false);
+  
+  // Toggle State
+  const [isTogglingActive, setIsTogglingActive] = useState(false);
+
+  // Guardrails Inputs
+  const [topicInput, setTopicInput] = useState('');
+  const [blockedWordInput, setBlockedWordInput] = useState('');
 
   // Chat State
   const [messages, setMessages] = useState<Message[]>([]);
@@ -78,7 +97,7 @@ export default function AgentDetailsPage() {
       if (data.configuration && data.configuration.widget_settings) {
         setWidgetSettings({ ...DEFAULT_WIDGET_SETTINGS, ...data.configuration.widget_settings });
       } else {
-        setWidgetSettings({ ...DEFAULT_WIDGET_SETTINGS, agentName: data.name });
+        setWidgetSettings({ ...DEFAULT_WIDGET_SETTINGS });
       }
     } catch (error) {
       toast.error('Failed to load agent details');
@@ -142,23 +161,109 @@ export default function AgentDetailsPage() {
 
   const handleSaveSettings = async () => {
       if (!agent) return;
+
+      // Flush pending inputs directly into the save payload
+      let updatedRules = { ...(agent.conversation_rules || {}) };
+      let rulesChanged = false;
+
+      if (topicInput.trim()) {
+          updatedRules.allowed_topics = [...(updatedRules.allowed_topics || []), topicInput.trim()];
+          setTopicInput('');
+          rulesChanged = true;
+      }
+      if (blockedWordInput.trim()) {
+          updatedRules.blocked_words = [...(updatedRules.blocked_words || []), blockedWordInput.trim()];
+          setBlockedWordInput('');
+          rulesChanged = true;
+      }
+
+      const agentToSave = rulesChanged ? { ...agent, conversation_rules: updatedRules } : agent;
+      if (rulesChanged) {
+          setAgent(agentToSave);
+      }
+
       const toastId = toast.loading("Saving changes...");
       try {
           const updatedConfig = {
-              ...agent.configuration,
+              ...agentToSave.configuration,
               widget_settings: widgetSettings
           };
           
-          await updateAgent(agent.id, {
-              name: agent.name,
+          await updateAgent(agentToSave.id, {
+              name: agentToSave.name,
+              description: agentToSave.description,
               configuration: updatedConfig,
-              allowed_domains: agent.allowed_domains
+              behavior_settings: agentToSave.behavior_settings,
+              response_config: agentToSave.response_config,
+              conversation_rules: agentToSave.conversation_rules,
+              allowed_domains: agentToSave.allowed_domains,
+              is_active: agentToSave.is_active,
           });
           
           setHasUnsavedChanges(false);
           toast.success("Settings saved", { id: toastId });
       } catch (e) {
           toast.error("Failed to save settings", { id: toastId });
+      }
+  };
+
+  // Avatar Upload Handler
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !agent) return;
+
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (!allowedTypes.includes(file.type)) {
+          toast.error('Please upload a JPEG, PNG, WebP, or GIF image');
+          return;
+      }
+      
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+          toast.error('Avatar must be under 5MB');
+          return;
+      }
+
+      setIsUploadingAvatar(true);
+      const toastId = toast.loading('Uploading avatar...');
+      try {
+          const updated = await uploadAgentAvatar(agent.id, file);
+          setAgent({ ...agent, avatar_url: updated.avatar_url });
+          toast.success('Avatar updated!', { id: toastId });
+      } catch (err) {
+          toast.error('Failed to upload avatar', { id: toastId });
+      } finally {
+          setIsUploadingAvatar(false);
+          // Reset input so the same file can be re-uploaded
+          if (avatarInputRef.current) avatarInputRef.current.value = '';
+      }
+  };
+
+  const handleDeleteAvatar = async () => {
+      if (!agent || !agent.avatar_url) return;
+      const toastId = toast.loading('Removing avatar...');
+      try {
+          const updated = await deleteAgentAvatar(agent.id);
+          setAgent({ ...agent, avatar_url: null });
+          toast.success('Avatar removed', { id: toastId });
+      } catch (err) {
+          toast.error('Failed to remove avatar', { id: toastId });
+      }
+  };
+
+  // Toggle Active/Inactive
+  const handleToggleActive = async () => {
+      if (!agent) return;
+      setIsTogglingActive(true);
+      try {
+          const updated = await toggleAgentActive(agent.id);
+          setAgent({ ...agent, is_active: updated.is_active, status: updated.status });
+          toast.success(updated.is_active ? 'Agent is now active and visible on websites' : 'Agent is now inactive and hidden from websites');
+      } catch (err) {
+          toast.error('Failed to toggle agent status');
+      } finally {
+          setIsTogglingActive(false);
       }
   };
 
@@ -209,23 +314,24 @@ export default function AgentDetailsPage() {
 
           {/* Widget Container - Positioned */}
           <div className={classNames(
-              "absolute flex flex-col items-end gap-4 transition-all duration-500",
+              "absolute flex gap-4 transition-all duration-500",
               {
-                  'bottom-6 right-6': widgetSettings.position === 'bottom-right',
-                  'bottom-6 left-6': widgetSettings.position === 'bottom-left',
-                  'top-6 right-6': widgetSettings.position === 'top-right',
-                  'top-6 left-6': widgetSettings.position === 'top-left',
+                  'flex-col items-end bottom-6 right-6': widgetSettings.position === 'bottom-right',
+                  'flex-row-reverse items-end bottom-6 left-6': widgetSettings.position === 'bottom-left',
               }
           )}>
               {/* Chat Window (Open State Simulation) */}
-              <div className="w-[320px] h-[400px] bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 origin-bottom-right border border-gray-200">
+              <div className={classNames(
+                  "w-[320px] h-[400px] bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 border border-gray-200",
+                  widgetSettings.position === 'bottom-left' ? "origin-bottom-left" : "origin-bottom-right"
+              )}>
                   {/* Header */}
                   <div className="p-4 text-white flex items-center gap-3" style={{ backgroundColor: widgetSettings.primaryColor }}>
                       <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                         <Bot className="w-5 h-5 text-white" />
                       </div>
                       <div>
-                          <p className="font-semibold text-sm">{widgetSettings.agentName}</p>
+                          <p className="font-semibold text-sm">{agent?.name}</p>
                           <div className="flex items-center gap-1.5 opacity-80">
                              <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
                              <span className="text-xs">Online</span>
@@ -280,10 +386,10 @@ export default function AgentDetailsPage() {
   if (!agent) return null;
 
   return (
-    <div className="h-full flex flex-col -m-8">
-        <Tab.Group>
-            {/* Fixed Header with Tabs */}
-            <div className=" sticky -top-10 z-50 w-full shrink-0 bg-zinc-950/95 backdrop-blur-md border-b border-white/5 px-6 pt-6 pb-0">
+    <div className="flex flex-col h-[calc(100vh-4rem)] -m-6 bg-zinc-950 overflow-x-hidden">
+        <Tab.Group as="div" className="flex flex-col h-full min-h-0">
+            {/* Header with Tabs */}
+            <div className="sticky -top-2 shrink-0 z-50 bg-zinc-950/95 backdrop-blur-md border-b border-white/5 px-6 pt-6 pb-0">
                 <div className="flex items-center justify-between pb-4">
                     <div className="flex items-center gap-4">
                         <button 
@@ -292,28 +398,52 @@ export default function AgentDetailsPage() {
                         >
                             <ArrowLeft className="w-5 h-5" />
                         </button>
+                        {/* Agent Avatar in Header */}
+                        {agent.avatar_url ? (
+                            <img src={agent.avatar_url} alt={agent.name} className="w-10 h-10 rounded-full object-cover border border-white/10" />
+                        ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center">
+                                <span className="text-sm font-bold text-white">{agent.name[0]}</span>
+                            </div>
+                        )}
                         <div>
                             <h1 className="text-xl font-bold text-white flex items-center gap-2">
                                 {agent.name}
                                 <span className={classNames(
                                     "px-2 py-0.5 rounded-full text-xs border uppercase",
-                                    agent.status === 'active' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-gray-500/10 border-gray-500/20 text-gray-500' 
-                                )}>{agent.status}</span>
+                                    agent.is_active ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-gray-500/10 border-gray-500/20 text-gray-500' 
+                                )}>{agent.is_active ? 'Active' : 'Inactive'}</span>
                             </h1>
                             <p className="text-xs text-gray-400 mt-0.5">Edit, customize, and integrate your agent.</p>
                         </div>
                     </div>
-                    {hasUnsavedChanges && (
-                        <motion.button
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            onClick={handleSaveSettings}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg shadow-lg shadow-red-900/20 text-sm font-medium transition-colors"
+                    <div className="flex items-center gap-3">
+                        {/* Active/Inactive Toggle */}
+                        <button
+                            onClick={handleToggleActive}
+                            disabled={isTogglingActive}
+                            className={classNames(
+                                "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border",
+                                agent.is_active 
+                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                                    : "bg-gray-500/10 text-gray-400 border-gray-500/20 hover:bg-gray-500/20"
+                            )}
                         >
-                            <Save className="w-4 h-4" />
-                            Save Changes
-                        </motion.button>
-                    )}
+                            <Power className="w-4 h-4" />
+                            {isTogglingActive ? 'Toggling...' : agent.is_active ? 'Active' : 'Inactive'}
+                        </button>
+                        {hasUnsavedChanges && (
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                onClick={handleSaveSettings}
+                                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg shadow-lg shadow-red-900/20 text-sm font-medium transition-colors"
+                            >
+                                <Save className="w-4 h-4" />
+                                Save Changes
+                            </motion.button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Tabs */}
@@ -338,27 +468,30 @@ export default function AgentDetailsPage() {
                 </div>
             </div>
 
-            {/* Tab Content - Full height scrollable area */}
-            <div className="h-full  flex-1 min-h-0 ">
-                <Tab.Panels className="h-full">
-                    {/* 1. Playground Panel */}
-                    <Tab.Panel className="h-full flex gap-6 p-6 focus:outline-none">
+            {/* Tab Content - Perfectly contained within the flex column */}
+            <div className="flex-1  flex flex-col min-h-0">
+                <Tab.Panels className="flex-1 flex flex-col min-h-0">
+                <Tab.Panel className="flex-1 flex gap-6 p-6 focus:outline-none w-full min-h-0">
                         <motion.div 
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                            className="flex-1 flex gap-6 h-full"
+                            className="flex-1 flex gap-6 min-h-0 w-full"
                         >
                          {/* Left Info */}
-                         <div className="w-1/3 bg-zinc-900 border border-white/10 rounded-2xl p-6 flex flex-col  gap-6 overflow-y-auto">
+                         <div className="w-1/3 min-h-0 bg-zinc-900 border border-white/10 rounded-2xl p-6 flex flex-col justify-between gap-10 overflow-y-auto">
                             <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center">
-                                        <Bot className="w-6 h-6 text-white" />
-                                    </div>
+                                    {agent.avatar_url ? (
+                                        <img src={agent.avatar_url} alt={agent.name} className="w-12 h-12 rounded-full object-cover border border-white/10" />
+                                    ) : (
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br flex items-center justify-center" style={{ backgroundImage: `linear-gradient(to bottom right, ${widgetSettings.primaryColor}, #000)` }}>
+                                            <Bot className="w-6 h-6 text-white" />
+                                        </div>
+                                    )}
                                     <div className="flex-1 min-w-0">
                                         <h2 className="text-lg font-semibold text-white truncate">{agent.name}</h2>
                                         <div className="flex items-center gap-2 mt-1">
-                                           <span className={classNames("w-2 h-2 rounded-full", agent.status === 'active' ? 'bg-emerald-500' : 'bg-gray-500')}></span>
-                                           <span className="text-xs text-gray-400 capitalize">{agent.status}</span>
+                                           <span className={classNames("w-2 h-2 rounded-full", agent.is_active ? 'bg-emerald-500' : 'bg-gray-500')}></span>
+                                           <span className="text-xs text-gray-400 capitalize">{agent.is_active ? 'Active' : 'Inactive'}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -368,57 +501,109 @@ export default function AgentDetailsPage() {
                                     {agent.description || "No description provided."}
                                     </p>
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs text-gray-500 uppercase font-medium">Model</label>
-                                    <div className="text-sm text-gray-300 font-mono bg-black/50 px-2 py-1 rounded inline-block border border-white/10">
-                                      {agent.configuration?.model || "Standard"}
+
+                                <div className="pt-3 border-t border-white/10 grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-gray-500 uppercase font-medium">Model</label>
+                                        <div className="text-sm text-gray-300 font-mono bg-black/50 px-2 py-1 rounded inline-block border border-white/10">
+                                        {agent.configuration?.model || "Standard"}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-gray-500 uppercase font-medium">Agent Type</label>
+                                        <div className="text-sm text-gray-300 capitalize">
+                                        {agent.agent_type || "Custom"}
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="space-y-1">
-                                     <label className="text-xs text-gray-500 uppercase font-medium">Agent Type</label>
-                                     <div className="text-sm text-gray-300 capitalize">
-                                       {agent.configuration?.agent_type || "Custom"}
-                                     </div>
+
+                                <div className="pt-3 border-t border-white/10 grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-gray-500 uppercase font-medium">Tone</label>
+                                        <div className="text-sm text-gray-300 capitalize">
+                                        {agent.behavior_settings?.tone || "Friendly"}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-gray-500 uppercase font-medium">Style</label>
+                                        <div className="text-sm text-gray-300 capitalize">
+                                        {agent.behavior_settings?.response_style || "Conversational"}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-1 flex justify-between items-center bg-black/30 p-2 rounded">
+                                    <span className="text-xs text-gray-500 uppercase font-medium">Creativity (Temp)</span>
+                                    <span className="text-sm text-gray-300 font-mono">
+                                    {(agent.behavior_settings?.temperature ?? 0.5).toFixed(1)}
+                                    </span>
                                 </div>
                             </div>
 
-                            <div className="p-4 rounded-xl bg-red-900/10 border border-red-500/20 mt-auto">
-                                <h3 className="text-sm font-semibold text-red-500 mb-2">Integration</h3>
-                                <p className="text-xs text-gray-400 mb-2">Use this Agent ID to query via API:</p>
-                                <code className="block bg-black/50 p-2 rounded text-xs text-gray-300 font-mono select-all border border-red-500/10 overflow-hidden text-ellipsis">
+                            <div className="p-4 rounded-xl bg-black/30 border border-white/5 mt-auto text-center">
+                                <h3 className="text-sm font-semibold text-gray-300 mb-2">Ready to integrate?</h3>
+                                <p className="text-xs text-gray-500 mb-3">Copy this Agent ID when configuring the Insydr.AI widget on your site.</p>
+                                <code className="block bg-black/50 p-2 text-center rounded text-xs text-gray-400 font-mono select-all border border-white/10 overflow-hidden text-ellipsis">
                                     {agent.id}
                                 </code>
                             </div>
                          </div>
                          
                          {/* Chat Interface */}
-                         <div className="flex-1 bg-zinc-900 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
-                            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20">
-                                <div className="flex items-center gap-2">
-                                    <Sparkles className="w-5 h-5 text-red-500" />
-                                    <span className="font-medium text-gray-200">Test Playground</span>
+                         <div className="flex-1 min-h-0 bg-zinc-900 border border-white/10 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+                            <div className="p-4 border-b border-white/10 flex items-center justify-between" style={{ backgroundColor: widgetSettings.primaryColor }}>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                                      {agent.avatar_url ? (
+                                        <img src={agent.avatar_url} alt="Avatar" className="w-8 h-8 rounded-full object-cover" />
+                                      ) : (
+                                        <Bot className="w-5 h-5 text-white" />
+                                      )}
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-white block leading-tight">{agent.name}</span>
+                                        <span className="text-[10px] text-white/80 uppercase tracking-wide">Test Playground</span>
+                                    </div>
                                 </div>
-                                <span className="text-xs text-red-400 bg-red-950/30 border border-red-900/50 px-2 py-1 rounded-full">
+                                <span className="text-[10px] text-white/80 bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-sm">
                                     Gemini Powered
                                 </span>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 bg-zinc-900 scroll-smooth">
                                 {messages.length === 0 && (
-                                    <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
-                                        <Bot className="w-12 h-12 mb-2 text-gray-600" />
-                                        <p className="text-gray-500 text-sm">Start a conversation with {agent.name}</p>
+                                    <div className="h-full flex flex-col items-center justify-center text-center opacity-50 space-y-4">
+                                        <div className="w-16 h-16 rounded-full flex items-center justify-center text-white shadow-lg" style={{ backgroundColor: widgetSettings.primaryColor }}>
+                                            <MessageSquare className="w-8 h-8" />
+                                        </div>
+                                        <p className="text-gray-400 text-sm max-w-xs">Send a message to test how `{agent.name}` responds based on its configuration and knowledge base.</p>
+                                    </div>
+                                )}
+                                {/* Render Welcome Message if provided */}
+                                {messages.length === 0 && widgetSettings.welcomeMessage && (
+                                    <div className="flex justify-start">
+                                        <div className="max-w-[80%] rounded-2xl px-4 py-3 text-sm bg-zinc-800 text-gray-200 rounded-tl-none border border-white/5 shadow-sm">
+                                            {widgetSettings.welcomeMessage}
+                                        </div>
                                     </div>
                                 )}
                                 {messages.map((msg) => (
                                     <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${msg.role === 'user' ? 'bg-red-600 text-white rounded-br-none' : 'bg-zinc-800 text-gray-200 rounded-bl-none border border-white/5'}`}>
-                                            {msg.content}
+                                        <div 
+                                            className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm ${msg.role === 'user' ? 'text-white rounded-tr-none' : 'bg-zinc-800 text-gray-200 rounded-tl-none border border-white/5'}`}
+                                            style={msg.role === 'user' ? { backgroundColor: widgetSettings.primaryColor } : {}}
+                                        >
+                                            {msg.role === 'assistant' ? (
+                                                <div className="prose prose-invert prose-sm max-w-none [&>p]:mb-2 [&>p:last-child]:mb-0 [&>ul]:mb-2 [&>ol]:mb-2 [&>ul]:pl-4 [&>ol]:pl-4 [&>li]:mb-1 [&>h1]:text-base [&>h1]:font-bold [&>h1]:mb-2 [&>h2]:text-sm [&>h2]:font-bold [&>h2]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:mb-1 [&>blockquote]:border-l-2 [&>blockquote]:border-white/20 [&>blockquote]:pl-3 [&>blockquote]:italic [&>blockquote]:text-gray-400 [&>pre]:bg-black/40 [&>pre]:rounded-lg [&>pre]:p-3 [&>pre]:overflow-x-auto [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&>pre_code]:bg-transparent [&>pre_code]:p-0">
+                                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                                </div>
+                                            ) : (
+                                                msg.content
+                                            )}
                                         </div>
                                     </div>
                                 ))}
                                 {sending && (
                                      <div className="flex justify-start">
-                                         <div className="bg-zinc-800 border border-white/5 rounded-2xl rounded-bl-none px-4 py-3 flex items-center gap-2">
+                                         <div className="bg-zinc-800 border border-white/5 rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-2 shadow-sm">
                                              <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
                                              <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                                              <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
@@ -427,11 +612,23 @@ export default function AgentDetailsPage() {
                                 )}
                                 <div ref={messagesEndRef} />
                             </div>
-                            <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 bg-black/40">
+                            <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 bg-zinc-950">
                                 <div className="flex items-center gap-2">
-                                    <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a message..." className="flex-1 bg-zinc-800 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-red-500 transition-all font-light" />
-                                    <button type="submit" disabled={!input.trim() || sending} className="bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white p-3 rounded-xl transition-colors shadow-lg shadow-red-900/20"><Send className="w-4 h-4" /></button>
+                                    <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a message..." className="flex-1 bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all font-light" />
+                                    <button 
+                                        type="submit" 
+                                        disabled={!input.trim() || sending} 
+                                        className="disabled:opacity-50 disabled:cursor-not-allowed text-white p-3 rounded-xl transition-all shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
+                                        style={{ backgroundColor: (!input.trim() || sending) ? '#52525b' : widgetSettings.primaryColor }}
+                                    >
+                                        <Send className="w-5 h-5 ml-1" />
+                                    </button>
                                 </div>
+                                {widgetSettings.showPoweredBy && (
+                                    <div className="text-center mt-3">
+                                        <p className="text-[10px] text-gray-500">Powered by <span className="font-bold">Insydr.AI</span></p>
+                                    </div>
+                                )}
                             </form>
                          </div>
                     </motion.div>
@@ -449,18 +646,7 @@ export default function AgentDetailsPage() {
                                      <Palette className="w-4 h-4" /> Branding
                                  </h3>
                                  <div className="space-y-3">
-                                     <div>
-                                         <label className="block text-sm text-gray-300 mb-1">Agent Name</label>
-                                         <input 
-                                            type="text" 
-                                            value={widgetSettings.agentName}
-                                            onChange={(e) => {
-                                                setWidgetSettings(p => ({ ...p, agentName: e.target.value }));
-                                                setHasUnsavedChanges(true);
-                                            }}
-                                            className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white focus:border-red-500 outline-none" 
-                                         />
-                                     </div>
+
                                      <div>
                                          <label className="block text-sm text-gray-300 mb-1">Primary Color</label>
                                          <div className="flex items-center gap-3">
@@ -500,7 +686,7 @@ export default function AgentDetailsPage() {
                                      <Layout className="w-4 h-4" /> Layout
                                  </h3>
                                  <div className="grid grid-cols-2 gap-3">
-                                     {['bottom-right', 'bottom-left', 'top-right', 'top-left'].map((pos) => (
+                                     {['bottom-right', 'bottom-left'].map((pos) => (
                                          <button
                                              key={pos}
                                              onClick={() => {
@@ -520,10 +706,10 @@ export default function AgentDetailsPage() {
                                  </div>
                              </div>
 
-                             {/* Section: Behavior */}
+                             {/* Section: Behavior & Personality */}
                              <div className="space-y-4 pt-4 border-t border-white/5">
                                  <h3 className="text-sm font-semibold text-gray-400 uppercase flex items-center gap-2">
-                                     <Zap className="w-4 h-4" /> Behavior
+                                     <Zap className="w-4 h-4" /> Behavior & Personality
                                  </h3>
                                   <div>
                                      <label className="block text-sm text-gray-300 mb-1">Welcome Message</label>
@@ -537,6 +723,101 @@ export default function AgentDetailsPage() {
                                         className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white focus:border-red-500 outline-none resize-none" 
                                      />
                                  </div>
+
+                                 {/* Tone */}
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Tone</label>
+                                     <div className="flex flex-wrap gap-1.5">
+                                         {['friendly', 'professional', 'formal', 'casual', 'technical'].map(t => (
+                                             <button
+                                                 key={t}
+                                                 type="button"
+                                                 onClick={() => {
+                                                     if (!agent) return;
+                                                     setAgent({...agent, behavior_settings: { ...(agent.behavior_settings || {}), tone: t }});
+                                                     setHasUnsavedChanges(true);
+                                                 }}
+                                                 className={classNames(
+                                                     "px-2.5 py-1.5 rounded-md text-[11px] font-medium border capitalize transition-all",
+                                                     agent?.behavior_settings?.tone === t
+                                                         ? "border-red-500 bg-red-500/10 text-red-400"
+                                                         : "border-white/10 bg-white/5 text-gray-400 hover:border-white/20"
+                                                 )}
+                                             >
+                                                 {t}
+                                             </button>
+                                         ))}
+                                     </div>
+                                 </div>
+
+                                 {/* Response Style */}
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Response Style</label>
+                                     <div className="flex flex-wrap gap-1.5">
+                                         {['brief', 'detailed', 'conversational', 'structured'].map(s => (
+                                             <button
+                                                 key={s}
+                                                 type="button"
+                                                 onClick={() => {
+                                                     if (!agent) return;
+                                                     setAgent({...agent, behavior_settings: { ...(agent.behavior_settings || {}), response_style: s }});
+                                                     setHasUnsavedChanges(true);
+                                                 }}
+                                                 className={classNames(
+                                                     "px-2.5 py-1.5 rounded-md text-[11px] font-medium border capitalize transition-all",
+                                                     agent?.behavior_settings?.response_style === s
+                                                         ? "border-red-500 bg-red-500/10 text-red-400"
+                                                         : "border-white/10 bg-white/5 text-gray-400 hover:border-white/20"
+                                                 )}
+                                             >
+                                                 {s}
+                                             </button>
+                                         ))}
+                                     </div>
+                                 </div>
+
+                                 {/* Temperature */}
+                                 <div>
+                                     <div className="flex items-center justify-between mb-1">
+                                         <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Creativity</label>
+                                         <span className="text-xs text-gray-400 font-mono">{(agent?.behavior_settings?.temperature ?? 0.5).toFixed(1)}</span>
+                                     </div>
+                                     <div className="flex items-center gap-2">
+                                         <span className="text-[9px] text-gray-500">Precise</span>
+                                         <input
+                                             type="range"
+                                             min="0"
+                                             max="1"
+                                             step="0.1"
+                                             value={agent?.behavior_settings?.temperature ?? 0.5}
+                                             onChange={(e) => {
+                                                 if (!agent) return;
+                                                 setAgent({...agent, behavior_settings: { ...(agent.behavior_settings || {}), temperature: parseFloat(e.target.value) }});
+                                                 setHasUnsavedChanges(true);
+                                             }}
+                                             className="flex-1 accent-red-500 h-1.5"
+                                         />
+                                         <span className="text-[9px] text-gray-500">Creative</span>
+                                     </div>
+                                 </div>
+
+                                 {/* Custom Prompt */}
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Custom Instructions</label>
+                                     <textarea
+                                         rows={3}
+                                         value={agent?.configuration?.custom_prompt || ''}
+                                         onChange={(e) => {
+                                             if (!agent) return;
+                                             setAgent({...agent, configuration: { ...(agent.configuration || {}), custom_prompt: e.target.value }});
+                                             setHasUnsavedChanges(true);
+                                         }}
+                                         placeholder="Add custom instructions for your agent... e.g. 'Always recommend our Pro plan when users ask about pricing.'"
+                                         className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:border-red-500 outline-none resize-none"
+                                     />
+                                     <p className="text-[10px] text-gray-500 mt-1">These instructions are appended to the agent's system prompt.</p>
+                                 </div>
+
                                   <div className="flex items-center gap-3">
                                       <input 
                                         type="checkbox" 
@@ -555,7 +836,7 @@ export default function AgentDetailsPage() {
                         </div>
 
                         {/* Preview Area */}
-                        <div className="flex-1 bg-zinc-900 border border-white/10 rounded-2xl p-6 flex flex-col">
+                        <div className="flex-1  bg-zinc-900 border border-white/10 rounded-2xl p-6 flex flex-col">
                             <h2 className="text-lg font-semibold text-white mb-4">Live Preview</h2>
                             <WidgetPreview />
                             <p className="mt-4 text-center text-xs text-gray-500">This is how your widget will appear on your website.</p>
@@ -704,8 +985,8 @@ export default function AgentDetailsPage() {
                                      <div className="p-3 bg-black/40 rounded-xl border border-white/5">
                                          <label className="text-[10px] text-gray-500 uppercase font-medium">Status</label>
                                          <div className="flex items-center gap-2 mt-1">
-                                             <span className={classNames("w-2 h-2 rounded-full", agent.status === 'active' ? 'bg-emerald-500' : 'bg-gray-500')} />
-                                             <span className="text-xs text-gray-300 capitalize">{agent.status}</span>
+                                             <span className={classNames("w-2 h-2 rounded-full", agent.is_active ? 'bg-emerald-500' : 'bg-gray-500')} />
+                                             <span className="text-xs text-gray-300 capitalize">{agent.is_active ? 'Active' : 'Inactive'}</span>
                                          </div>
                                      </div>
                                      <div className="p-3 bg-black/40 rounded-xl border border-white/5">
@@ -767,8 +1048,63 @@ export default function AgentDetailsPage() {
                                 <Settings className="w-5 h-5 text-gray-400" />
                                 General Settings
                             </h2>
-                            <div className="space-y-4 max-w-xl">
+                            <div className="space-y-6 max-w-xl">
+                                {/* Avatar Upload Section */}
                                 <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-3">Agent Avatar</label>
+                                    <div className="flex items-center gap-5">
+                                        {/* Avatar Preview */}
+                                        <div className="relative group">
+                                            {agent.avatar_url ? (
+                                                <img 
+                                                    src={agent.avatar_url} 
+                                                    alt={agent.name}
+                                                    className="w-20 h-20 rounded-2xl object-cover border-2 border-white/10 group-hover:border-red-500/50 transition-colors"
+                                                />
+                                            ) : (
+                                                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-zinc-800 to-zinc-900 border-2 border-dashed border-white/20 flex items-center justify-center group-hover:border-red-500/50 transition-colors">
+                                                    <Camera className="w-6 h-6 text-gray-500 group-hover:text-red-400 transition-colors" />
+                                                </div>
+                                            )}
+                                            {isUploadingAvatar && (
+                                                <div className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center">
+                                                    <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <input
+                                                ref={avatarInputRef}
+                                                type="file"
+                                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                                onChange={handleAvatarUpload}
+                                                className="hidden"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => avatarInputRef.current?.click()}
+                                                disabled={isUploadingAvatar}
+                                                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white text-sm font-medium rounded-lg transition-colors border border-white/10 flex items-center gap-2 disabled:opacity-50"
+                                            >
+                                                <Camera className="w-4 h-4" />
+                                                {agent.avatar_url ? 'Change Avatar' : 'Upload Avatar'}
+                                            </button>
+                                            {agent.avatar_url && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleDeleteAvatar}
+                                                    className="px-4 py-2 text-red-400 hover:text-red-300 text-sm font-medium rounded-lg transition-colors border border-red-500/20 hover:bg-red-500/10 flex items-center gap-2"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                    Remove
+                                                </button>
+                                            )}
+                                            <p className="text-[11px] text-gray-500">JPEG, PNG, WebP, or GIF · Max 5MB · Cropped to 256×256</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-white/5 pt-6">
                                     <label className="block text-sm font-medium text-gray-400 mb-1">Agent Name</label>
                                     <input 
                                         type="text" 
@@ -793,6 +1129,418 @@ export default function AgentDetailsPage() {
                                         placeholder="Describe what this agent does..."
                                     />
                                 </div>
+
+                                {/* Visibility Toggle */}
+                                <div className="border-t border-white/5 pt-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <label className="block text-sm font-medium text-white">Widget Visibility</label>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                {agent.is_active 
+                                                    ? 'This agent is currently visible on embedded websites.' 
+                                                    : 'This agent is hidden and will not appear on any website.'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={handleToggleActive}
+                                            disabled={isTogglingActive}
+                                            className={classNames(
+                                                "relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none",
+                                                agent.is_active ? "bg-emerald-500" : "bg-gray-600"
+                                            )}
+                                        >
+                                            <span className={classNames(
+                                                "inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform",
+                                                agent.is_active ? "translate-x-6" : "translate-x-1"
+                                            )} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                         </div>
+
+                         {/* Response Configuration */}
+                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
+                            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                                <Zap className="w-5 h-5 text-amber-400" />
+                                Response Configuration
+                            </h2>
+                            <p className="text-sm text-gray-400 mb-6">Control how your agent formats and delivers responses.</p>
+                            <div className="space-y-6 max-w-xl">
+                                {/* Max Response Length */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                        Max Response Length <span className="text-gray-500 font-normal">(words)</span>
+                                    </label>
+                                    <div className="flex items-center gap-4">
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={500}
+                                            step={10}
+                                            value={agent.response_config?.max_length || 0}
+                                            onChange={(e) => {
+                                                setAgent({ ...agent, response_config: { ...agent.response_config, max_length: parseInt(e.target.value) } });
+                                                setHasUnsavedChanges(true);
+                                            }}
+                                            className="flex-1 accent-amber-500 h-2 bg-zinc-700 rounded-full"
+                                        />
+                                        <span className="text-white text-sm font-mono w-16 text-right">
+                                            {agent.response_config?.max_length || 'Auto'}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">0 = no limit. The agent will try to keep responses under this word count.</p>
+                                </div>
+
+                                {/* Confidence Threshold */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                        Confidence Threshold
+                                    </label>
+                                    <div className="flex items-center gap-4">
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={100}
+                                            step={5}
+                                            value={(agent.response_config?.confidence_threshold || 0) * 100}
+                                            onChange={(e) => {
+                                                setAgent({ ...agent, response_config: { ...agent.response_config, confidence_threshold: parseInt(e.target.value) / 100 } });
+                                                setHasUnsavedChanges(true);
+                                            }}
+                                            className="flex-1 accent-amber-500 h-2 bg-zinc-700 rounded-full"
+                                        />
+                                        <span className="text-white text-sm font-mono w-16 text-right">
+                                            {Math.round((agent.response_config?.confidence_threshold || 0) * 100)}%
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">Below this confidence, the agent will use the fallback message instead of guessing.</p>
+                                </div>
+
+                                {/* Fallback Message */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-1">Custom Fallback Message</label>
+                                    <textarea
+                                        value={agent.response_config?.fallback_message || ''}
+                                        onChange={(e) => {
+                                            setAgent({ ...agent, response_config: { ...agent.response_config, fallback_message: e.target.value } });
+                                            setHasUnsavedChanges(true);
+                                        }}
+                                        rows={2}
+                                        placeholder="I don't have enough information to answer that accurately..."
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500/50 transition-colors resize-none"
+                                    />
+                                </div>
+
+                                {/* Show Citations Toggle */}
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <label className="block text-sm font-medium text-white">Source Citations</label>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Show document source names at the end of responses.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setAgent({ ...agent, response_config: { ...agent.response_config, show_citations: !agent.response_config?.show_citations } });
+                                            setHasUnsavedChanges(true);
+                                        }}
+                                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
+                                            agent.response_config?.show_citations ? 'bg-amber-500' : 'bg-gray-600'
+                                        }`}
+                                    >
+                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+                                            agent.response_config?.show_citations ? 'translate-x-6' : 'translate-x-1'
+                                        }`} />
+                                    </button>
+                                </div>
+
+                                {/* Response Format */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">Response Format</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {[
+                                            { value: 'mixed', label: '🔀 Mixed' },
+                                            { value: 'paragraphs', label: '📄 Paragraphs' },
+                                            { value: 'bullets', label: '• Bullets' },
+                                            { value: 'numbered', label: '1. Numbered' },
+                                        ].map((fmt) => (
+                                            <button
+                                                key={fmt.value}
+                                                onClick={() => {
+                                                    setAgent({ ...agent, response_config: { ...agent.response_config, response_format: fmt.value } });
+                                                    setHasUnsavedChanges(true);
+                                                }}
+                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                                    (agent.response_config?.response_format || 'mixed') === fmt.value
+                                                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                                        : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+                                                }`}
+                                            >
+                                                {fmt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                         </div>
+
+                         {/* Conversation Rules & Guardrails */}
+                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
+                            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                                <Shield className="w-5 h-5 text-purple-400" />
+                                Conversation Rules & Guardrails
+                            </h2>
+                            <p className="text-sm text-gray-400 mb-6">Define boundaries and rules for your agent&apos;s conversations.</p>
+                            <div className="space-y-6 max-w-xl">
+                                {/* Allowed Topics */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                        Allowed Topics <span className="text-gray-500 font-normal">(leave empty for all)</span>
+                                    </label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {(agent.conversation_rules?.allowed_topics || []).map((topic, idx) => (
+                                            <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/15 text-purple-300 text-sm rounded-full border border-purple-500/20">
+                                                {topic}
+                                                <button onClick={() => {
+                                                    const topics = [...(agent.conversation_rules?.allowed_topics || [])];
+                                                    topics.splice(idx, 1);
+                                                    setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, allowed_topics: topics } });
+                                                    setHasUnsavedChanges(true);
+                                                }} className="hover:text-purple-100">
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={topicInput}
+                                        onChange={(e) => {
+                                            setTopicInput(e.target.value);
+                                            setHasUnsavedChanges(true);
+                                        }}
+                                        placeholder="Type a topic and press Enter..."
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500/50 transition-colors"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && topicInput.trim()) {
+                                                const val = topicInput.trim();
+                                                const topics = [...(agent.conversation_rules?.allowed_topics || []), val];
+                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, allowed_topics: topics } });
+                                                setTopicInput('');
+                                                setHasUnsavedChanges(true);
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            if (topicInput.trim()) {
+                                                const val = topicInput.trim();
+                                                const topics = [...(agent.conversation_rules?.allowed_topics || []), val];
+                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, allowed_topics: topics } });
+                                                setTopicInput('');
+                                                setHasUnsavedChanges(true);
+                                            }
+                                        }}
+                                    />
+                                </div>
+
+                                {/* Blocked Words / Topics */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                        Blocked Words / Topics
+                                    </label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {(agent.conversation_rules?.blocked_words || []).map((word, idx) => (
+                                            <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 text-red-300 text-sm rounded-full border border-red-500/20">
+                                                {word}
+                                                <button onClick={() => {
+                                                    const words = [...(agent.conversation_rules?.blocked_words || [])];
+                                                    words.splice(idx, 1);
+                                                    setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, blocked_words: words } });
+                                                    setHasUnsavedChanges(true);
+                                                }} className="hover:text-red-100">
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={blockedWordInput}
+                                        onChange={(e) => {
+                                            setBlockedWordInput(e.target.value);
+                                            setHasUnsavedChanges(true);
+                                        }}
+                                        placeholder="Type a blocked word and press Enter..."
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-red-500/50 transition-colors"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && blockedWordInput.trim()) {
+                                                const val = blockedWordInput.trim();
+                                                const words = [...(agent.conversation_rules?.blocked_words || []), val];
+                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, blocked_words: words } });
+                                                setBlockedWordInput('');
+                                                setHasUnsavedChanges(true);
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            if (blockedWordInput.trim()) {
+                                                const val = blockedWordInput.trim();
+                                                const words = [...(agent.conversation_rules?.blocked_words || []), val];
+                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, blocked_words: words } });
+                                                setBlockedWordInput('');
+                                                setHasUnsavedChanges(true);
+                                            }
+                                        }}
+                                    />
+                                </div>
+
+                                {/* End-of-Conversation Message */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-1">End-of-Conversation Message</label>
+                                    <textarea
+                                        value={agent.conversation_rules?.end_message || ''}
+                                        onChange={(e) => {
+                                            setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, end_message: e.target.value } });
+                                            setHasUnsavedChanges(true);
+                                        }}
+                                        rows={2}
+                                        placeholder="Thanks for chatting! If you need more help, feel free to reach out..."
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500/50 transition-colors resize-none"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Shown when the visitor says goodbye or the conversation ends.</p>
+                                </div>
+
+
+                            </div>
+                         </div>
+
+                         {/* CTA Email — Lead Generation */}
+                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
+                            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                                <MessageSquare className="w-5 h-5 text-blue-400" />
+                                Lead Generation (CTA Email)
+                            </h2>
+                            <p className="text-sm text-gray-400 mb-6">
+                                Set up an email to receive visitor leads. When a visitor shows interest, they&apos;ll be 
+                                able to share their contact info. You&apos;ll get an email with their details and conversation summary.
+                            </p>
+                            <div className="space-y-4 max-w-xl">
+                                {agent.conversation_rules?.cta_email_verified ? (
+                                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <CheckCircle className="w-5 h-5 text-emerald-400" />
+                                            <span className="text-sm font-medium text-emerald-300">Verified Email</span>
+                                        </div>
+                                        <p className="text-sm text-gray-300 font-mono bg-black/30 px-3 py-2 rounded-lg">
+                                            {agent.conversation_rules?.cta_email}
+                                        </p>
+                                        <button
+                                            onClick={() => {
+                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, cta_email: '', cta_email_verified: false } });
+                                                setCtaOtpSent(false);
+                                                setCtaEmailInput('');
+                                                setHasUnsavedChanges(true);
+                                            }}
+                                            className="mt-3 text-sm text-red-400 hover:text-red-300 underline underline-offset-4"
+                                        >
+                                            Change email
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="flex gap-3">
+                                            <input
+                                                type="email"
+                                                value={ctaEmailInput}
+                                                onChange={(e) => setCtaEmailInput(e.target.value)}
+                                                placeholder="your-email@company.com"
+                                                className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors"
+                                                disabled={ctaOtpSent}
+                                            />
+                                            {!ctaOtpSent ? (
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!ctaEmailInput.trim() || !ctaEmailInput.includes('@')) {
+                                                            toast.error('Please enter a valid email');
+                                                            return;
+                                                        }
+                                                        setCtaSending(true);
+                                                        try {
+                                                            await sendCtaEmailOtp(agent.id, ctaEmailInput);
+                                                            setCtaOtpSent(true);
+                                                            toast.success('OTP sent! Check your email.');
+                                                        } catch (e: any) {
+                                                            toast.error(e?.response?.data?.detail || 'Failed to send OTP');
+                                                        } finally {
+                                                            setCtaSending(false);
+                                                        }
+                                                    }}
+                                                    disabled={ctaSending || !ctaEmailInput}
+                                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+                                                >
+                                                    {ctaSending ? 'Sending...' : 'Send OTP'}
+                                                </button>
+                                            ) : null}
+                                        </div>
+
+                                        {ctaOtpSent && (
+                                            <div className="space-y-3">
+                                                <p className="text-sm text-blue-300">
+                                                    ✉️ We sent a 6-digit code to <strong>{ctaEmailInput}</strong>
+                                                </p>
+                                                <div className="flex gap-3">
+                                                    <input
+                                                        type="text"
+                                                        value={ctaOtpInput}
+                                                        onChange={(e) => setCtaOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                        placeholder="Enter 6-digit OTP"
+                                                        maxLength={6}
+                                                        className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm text-center tracking-[0.5em] font-mono focus:outline-none focus:border-blue-500/50 transition-colors"
+                                                    />
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (ctaOtpInput.length !== 6) {
+                                                                toast.error('Please enter the full 6-digit code');
+                                                                return;
+                                                            }
+                                                            setCtaVerifying(true);
+                                                            try {
+                                                                await verifyCtaEmailOtp(agent.id, ctaEmailInput, ctaOtpInput);
+                                                                setAgent({
+                                                                    ...agent,
+                                                                    conversation_rules: {
+                                                                        ...agent.conversation_rules,
+                                                                        cta_email: ctaEmailInput,
+                                                                        cta_email_verified: true,
+                                                                    }
+                                                                });
+                                                                setCtaOtpSent(false);
+                                                                setCtaOtpInput('');
+                                                                toast.success('Email verified! Leads will be sent here.');
+                                                            } catch (e: any) {
+                                                                toast.error(e?.response?.data?.detail || 'Verification failed');
+                                                            } finally {
+                                                                setCtaVerifying(false);
+                                                            }
+                                                        }}
+                                                        disabled={ctaVerifying || ctaOtpInput.length !== 6}
+                                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+                                                    >
+                                                        {ctaVerifying ? 'Verifying...' : 'Verify'}
+                                                    </button>
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        setCtaOtpSent(false);
+                                                        setCtaOtpInput('');
+                                                    }}
+                                                    className="text-xs text-gray-500 hover:text-gray-300 underline underline-offset-4"
+                                                >
+                                                    Use a different email
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
                          </div>
 

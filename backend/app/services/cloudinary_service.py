@@ -39,6 +39,32 @@ async def upload_file(file_path: str, public_id: str = None) -> dict:
         print(f"Cloudinary upload error: {e}")
         raise e
 
+
+async def upload_avatar(file_path: str, public_id: str = None) -> dict:
+    """
+    Upload an avatar image to Cloudinary.
+    Uses 'image' resource type with transformations for consistent sizing.
+    """
+    try:
+        response = await asyncio.to_thread(
+            cloudinary.uploader.upload,
+            file_path,
+            public_id=public_id,
+            resource_type="image",
+            folder="insydr/avatars",
+            transformation=[
+                {"width": 256, "height": 256, "crop": "fill", "gravity": "face"},
+                {"quality": "auto:good", "fetch_format": "auto"}
+            ],
+            overwrite=True,
+            timeout=60
+        )
+        return response
+    except Exception as e:
+        print(f"Cloudinary avatar upload error: {e}")
+        raise e
+
+
 def delete_file(public_id: str, resource_type: str = "raw") -> dict:
     """
     Delete a file from Cloudinary.
@@ -49,3 +75,20 @@ def delete_file(public_id: str, resource_type: str = "raw") -> dict:
     except Exception as e:
         print(f"Cloudinary delete error: {e}")
         raise e
+
+
+async def delete_file_async(public_id: str, resource_type: str = "raw") -> dict:
+    """
+    Delete a file from Cloudinary asynchronously.
+    """
+    try:
+        response = await asyncio.to_thread(
+            cloudinary.uploader.destroy,
+            public_id,
+            resource_type=resource_type
+        )
+        return response
+    except Exception as e:
+        print(f"Cloudinary async delete error: {e}")
+        raise e
+
