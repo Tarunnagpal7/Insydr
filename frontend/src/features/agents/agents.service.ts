@@ -128,6 +128,11 @@ export const toggleAgentActive = async (agentId: string): Promise<Agent> => {
   return response.data;
 };
 
+export const duplicateAgent = async (agentId: string): Promise<Agent> => {
+  const response = await apiClient.post<Agent>(`/agents/${agentId}/duplicate`);
+  return response.data;
+};
+
 export const chatWithAgent = async (agentId: string, message: string): Promise<string> => {
   const response = await apiClient.post<{ response: string }>(`/agents/${agentId}/chat`, {
     message: message,

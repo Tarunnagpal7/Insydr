@@ -21,10 +21,21 @@ import {
   ChevronDown,
   Search,
   Brain,
-  Loader2
+  Loader2,
+  ThumbsUp,
+  ThumbsDown,
+  Download,
+  FileText,
+  UserCheck,
+  UserPlus,
+  HelpCircle,
+  Database,
+  BarChart2,
+  Heart
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import classNames from 'classnames';
+import ReactMarkdown from 'react-markdown';
 import {
   getDashboardStats,
   getConversationsOverTime,
@@ -35,6 +46,13 @@ import {
   getResponseTimeDistribution,
   getKnowledgeGaps,
   analyzeKnowledgeGaps,
+  getFeedbackStats,
+  getFeedbackOverTime,
+  getConversationInsights,
+  getDayOfWeekDistribution,
+  getTopQuestions,
+  getUserBehavior,
+  getKnowledgeBaseStats,
   formatDateForAPI,
   getDateRangePreset,
   DashboardStats,
@@ -45,9 +63,17 @@ import {
   TopPage,
   ResponseTimeDistribution,
   UnansweredQuestion,
-  GapAnalysis
+  GapAnalysis,
+  FeedbackStats,
+  FeedbackOverTimePoint,
+  ConversationInsights,
+  DayOfWeekPoint,
+  TopQuestion,
+  UserBehavior,
+  KnowledgeBaseStats
 } from '@/src/features/analytics/analytics.service';
 import { getAgents, Agent } from '@/src/features/agents/agents.service';
+import apiClient from '@/src/lib/api';
 
 // Date range presets
 const DATE_PRESETS = [
@@ -57,7 +83,7 @@ const DATE_PRESETS = [
   { label: 'Last 12 months', value: '12m' },
 ];
 
-// Stat Card Component
+// Stat Card Component — Glassmorphism Redesign
 const StatCard = ({ 
   title, 
   value, 
@@ -73,49 +99,62 @@ const StatCard = ({
   trend?: number; 
   color?: 'red' | 'emerald' | 'blue' | 'purple' | 'amber';
 }) => {
-  const colorClasses = {
-    red: 'from-red-500/20 to-red-900/10 border-red-500/20',
-    emerald: 'from-emerald-500/20 to-emerald-900/10 border-emerald-500/20',
-    blue: 'from-blue-500/20 to-blue-900/10 border-blue-500/20',
-    purple: 'from-purple-500/20 to-purple-900/10 border-purple-500/20',
-    amber: 'from-amber-500/20 to-amber-900/10 border-amber-500/20',
+  const glowColors = {
+    red: 'shadow-red-500/20',
+    emerald: 'shadow-emerald-500/20',
+    blue: 'shadow-blue-500/20',
+    purple: 'shadow-purple-500/20',
+    amber: 'shadow-amber-500/20',
   };
   
-  const iconColors = {
-    red: 'text-red-500',
-    emerald: 'text-emerald-500',
-    blue: 'text-blue-500',
-    purple: 'text-purple-500',
-    amber: 'text-amber-500',
+  const iconBgColors = {
+    red: 'bg-red-500/15 ring-red-500/30 text-red-400',
+    emerald: 'bg-emerald-500/15 ring-emerald-500/30 text-emerald-400',
+    blue: 'bg-blue-500/15 ring-blue-500/30 text-blue-400',
+    purple: 'bg-purple-500/15 ring-purple-500/30 text-purple-400',
+    amber: 'bg-amber-500/15 ring-amber-500/30 text-amber-400',
+  };
+
+  const accentColors = {
+    red: 'from-red-500 to-rose-600',
+    emerald: 'from-emerald-500 to-teal-600',
+    blue: 'from-blue-500 to-cyan-600',
+    purple: 'from-purple-500 to-violet-600',
+    amber: 'from-amber-500 to-orange-600',
   };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2, transition: { duration: 0.2 } }}
       className={classNames(
-        "bg-gradient-to-br border rounded-2xl p-5 relative overflow-hidden",
-        colorClasses[color]
+        "relative bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-5 overflow-hidden group cursor-default",
+        `hover:${glowColors[color]}`,
+        "hover:shadow-lg hover:border-white/[0.15] transition-all duration-300"
       )}
     >
+      {/* Accent line at top */}
+      <div className={classNames("absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r opacity-60 group-hover:opacity-100 transition-opacity", accentColors[color])} />
+      
       <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-gray-400 font-medium">{title}</p>
-          <p className="text-3xl font-bold text-white mt-1">{value}</p>
-          {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-widest text-gray-500 font-medium">{title}</p>
+          <p className="text-2xl font-bold text-white tracking-tight">{value}</p>
+          {subtitle && <p className="text-[11px] text-gray-500">{subtitle}</p>}
         </div>
-        <div className={classNames("p-3 rounded-xl bg-white/5", iconColors[color])}>
-          <Icon className="w-5 h-5" />
+        <div className={classNames("p-2.5 rounded-xl ring-1", iconBgColors[color])}>
+          <Icon className="w-4 h-4" />
         </div>
       </div>
       {trend !== undefined && (
         <div className={classNames(
-          "flex items-center gap-1 mt-3 text-sm",
-          trend >= 0 ? "text-emerald-500" : "text-red-500"
+          "flex items-center gap-1 mt-3 text-xs font-medium",
+          trend >= 0 ? "text-emerald-400" : "text-red-400"
         )}>
-          {trend >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+          {trend >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
           <span>{Math.abs(trend).toFixed(1)}%</span>
-          <span className="text-gray-500 ml-1">vs previous period</span>
+          <span className="text-gray-600 ml-0.5">vs prev</span>
         </div>
       )}
     </motion.div>
@@ -779,42 +818,42 @@ const KnowledgeGapsPanel = ({ workspaceId }: { workspaceId: string }) => {
             <Sparkles className="w-5 h-5 text-red-400" />
             <h4 className="font-semibold text-white">AI Content Suggestions</h4>
           </div>
-          <div className="text-sm text-gray-300 prose prose-invert max-w-none">
-            {analysis.split('\n').map((line, i) => (
-              <p key={i} className="mb-1">{line}</p>
-            ))}
+          <div className="text-sm text-gray-300 prose prose-invert max-w-none prose-headings:text-white prose-strong:text-white prose-li:text-gray-300">
+            <ReactMarkdown>{analysis}</ReactMarkdown>
           </div>
         </motion.div>
       )}
 
       {gaps.length > 0 ? (
         <div className="overflow-hidden rounded-xl border border-white/10 bg-zinc-900/50">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-gray-400 bg-black/20 uppercase border-b border-white/10">
-              <tr>
-                <th className="px-6 py-3 font-medium">Unanswered Question</th>
-                <th className="px-6 py-3 font-medium text-center">Occurrences</th>
-                <th className="px-6 py-3 font-medium text-right">Last Seen</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {gaps.map((gap) => (
-                <tr key={gap.id} className="hover:bg-white/5 transition-colors">
-                  <td className="px-6 py-4 font-medium text-gray-200">
-                    {gap.question}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold rounded-full bg-red-500/20 text-red-400">
-                      {gap.occurrence_count}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right text-gray-400 whitespace-nowrap">
-                    {new Date(gap.last_seen_at).toLocaleDateString()}
-                  </td>
+          <div className="max-h-[360px] overflow-y-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-gray-400 bg-black/30 uppercase border-b border-white/10 sticky top-0 z-10">
+                <tr>
+                  <th className="px-6 py-3 font-medium">Unanswered Question</th>
+                  <th className="px-6 py-3 font-medium text-center">Occurrences</th>
+                  <th className="px-6 py-3 font-medium text-right">Last Seen</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {gaps.map((gap) => (
+                  <tr key={gap.id} className="hover:bg-white/5 transition-colors">
+                    <td className="px-6 py-4 font-medium text-gray-200">
+                      {gap.question}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold rounded-full bg-red-500/20 text-red-400">
+                        {gap.occurrence_count}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right text-gray-400 whitespace-nowrap">
+                      {new Date(gap.last_seen_at).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="text-center py-10 bg-zinc-900/30 rounded-xl border border-white/5 border-dashed">
@@ -846,6 +885,14 @@ export default function AnalyticsPage() {
   const [hourlyData, setHourlyData] = useState<HourlyPoint[]>([]);
   const [topPages, setTopPages] = useState<TopPage[]>([]);
   const [responseTimeData, setResponseTimeData] = useState<ResponseTimeDistribution | null>(null);
+  // New analytics data
+  const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null);
+  const [feedbackOverTime, setFeedbackOverTime] = useState<FeedbackOverTimePoint[]>([]);
+  const [conversationInsights, setConversationInsights] = useState<ConversationInsights | null>(null);
+  const [dayOfWeekData, setDayOfWeekData] = useState<DayOfWeekPoint[]>([]);
+  const [topQuestions, setTopQuestions] = useState<TopQuestion[]>([]);
+  const [userBehavior, setUserBehavior] = useState<UserBehavior | null>(null);
+  const [kbStats, setKbStats] = useState<KnowledgeBaseStats | null>(null);
 
   // Compute date range
   const dateRange = useMemo(() => getDateRangePreset(datePreset), [datePreset]);
@@ -871,7 +918,14 @@ export default function AnalyticsPage() {
         hourly,
         pages,
         responseTime,
-        agentsList
+        agentsList,
+        feedback,
+        feedbackTime,
+        convInsights,
+        dowData,
+        topQ,
+        behavior,
+        kbStatsData
       ] = await Promise.all([
         getDashboardStats(params),
         getConversationsOverTime({ ...params, granularity: 'day' }),
@@ -880,7 +934,14 @@ export default function AnalyticsPage() {
         getHourlyDistribution(params),
         getTopPages({ ...params, limit: 5 }),
         getResponseTimeDistribution(params),
-        getAgents(workspaceId)
+        getAgents(workspaceId),
+        getFeedbackStats(params).catch(() => null),
+        getFeedbackOverTime(params).catch(() => []),
+        getConversationInsights(params).catch(() => null),
+        getDayOfWeekDistribution(params).catch(() => []),
+        getTopQuestions({ ...params, limit: 20 }).catch(() => []),
+        getUserBehavior(params).catch(() => null),
+        getKnowledgeBaseStats({ workspace_id: workspaceId }).catch(() => null),
       ]);
 
       setDashboardStats(stats);
@@ -891,6 +952,13 @@ export default function AnalyticsPage() {
       setTopPages(pages);
       setResponseTimeData(responseTime);
       setAgents(agentsList);
+      setFeedbackStats(feedback);
+      setFeedbackOverTime(feedbackTime);
+      setConversationInsights(convInsights);
+      setDayOfWeekData(dowData);
+      setTopQuestions(topQ);
+      setUserBehavior(behavior);
+      setKbStats(kbStatsData);
     } catch (error) {
       console.error('Failed to load analytics:', error);
       toast.error('Failed to load analytics data');
@@ -908,8 +976,12 @@ export default function AnalyticsPage() {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <div className="flex flex-col items-center gap-4">
-          <Sparkles className="w-8 h-8 text-red-500 animate-pulse" />
-          <p className="text-gray-400">Loading analytics...</p>
+          <div className="relative">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center animate-pulse">
+              <BarChart3 className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <p className="text-gray-500 text-sm font-medium">Loading analytics...</p>
         </div>
       </div>
     );
@@ -920,59 +992,67 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <BarChart3 className="w-7 h-7 text-red-500" />
-            Analytics Dashboard
-          </h1>
-          <p className="text-gray-400 text-sm mt-1">
-            Monitor your agent performance and usage metrics
-          </p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-lg shadow-red-500/20">
+              <BarChart3 className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Analytics</h1>
+              <p className="text-gray-500 text-xs mt-0.5">
+                Real-time performance insights
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 bg-zinc-900/60 backdrop-blur-lg border border-white/[0.06] rounded-xl p-1.5">
           {/* Agent Filter */}
           <div className="relative">
             <select
               value={selectedAgent}
               onChange={(e) => setSelectedAgent(e.target.value)}
-              className="appearance-none bg-zinc-900 border border-white/10 rounded-lg px-4 py-2 pr-10 text-sm text-white focus:outline-none focus:border-red-500 cursor-pointer"
+              className="appearance-none bg-white/[0.04] hover:bg-white/[0.08] border-0 rounded-lg px-3 py-1.5 pr-8 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-red-500/50 cursor-pointer transition-colors"
             >
               <option value="all">All Agents</option>
               {agents.map(agent => (
                 <option key={agent.id} value={agent.id}>{agent.name}</option>
               ))}
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none" />
           </div>
+
+          <div className="w-px h-5 bg-white/10" />
 
           {/* Date Range Filter */}
           <div className="relative">
             <select
               value={datePreset}
               onChange={(e) => setDatePreset(e.target.value)}
-              className="appearance-none bg-zinc-900 border border-white/10 rounded-lg px-4 py-2 pr-10 text-sm text-white focus:outline-none focus:border-red-500 cursor-pointer"
+              className="appearance-none bg-white/[0.04] hover:bg-white/[0.08] border-0 rounded-lg px-3 py-1.5 pr-8 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-red-500/50 cursor-pointer transition-colors"
             >
               {DATE_PRESETS.map(preset => (
                 <option key={preset.value} value={preset.value}>{preset.label}</option>
               ))}
             </select>
-            <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none" />
           </div>
+
+          <div className="w-px h-5 bg-white/10" />
 
           {/* Refresh Button */}
           <button
             onClick={() => loadAnalytics(false)}
             disabled={refreshing}
-            className="p-2 bg-zinc-900 border border-white/10 rounded-lg text-gray-400 hover:text-white hover:border-white/20 transition-all disabled:opacity-50"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.08] transition-all disabled:opacity-50"
           >
-            <RefreshCw className={classNames("w-5 h-5", refreshing && "animate-spin")} />
+            <RefreshCw className={classNames("w-4 h-4", refreshing && "animate-spin")} />
           </button>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard
           title="Total Conversations"
           value={dashboardStats?.total_conversations.toLocaleString() || '0'}
@@ -1001,7 +1081,53 @@ export default function AnalyticsPage() {
           icon={Activity}
           color="emerald"
         />
+        <StatCard
+          title="Satisfaction"
+          value={feedbackStats ? `${feedbackStats.satisfaction_score}%` : 'N/A'}
+          subtitle={feedbackStats ? `${feedbackStats.total_feedback} ratings` : 'No feedback yet'}
+          icon={Heart}
+          color="amber"
+        />
+        <StatCard
+          title="Knowledge Base"
+          value={kbStats?.total_documents?.toLocaleString() || '0'}
+          subtitle={`${kbStats?.total_chunks?.toLocaleString() || '0'} chunks indexed`}
+          icon={Database}
+          color="blue"
+        />
       </div>
+
+      {/* Conversation Insights Row */}
+      {conversationInsights && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-xl p-4 relative overflow-hidden">
+            <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-blue-500 to-cyan-500" />
+            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-medium">Avg Msgs/Conv</p>
+            <p className="text-xl font-bold text-white mt-1 tracking-tight">{conversationInsights.avg_messages_per_conversation}</p>
+          </div>
+          <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-xl p-4 relative overflow-hidden">
+            <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-emerald-500 to-teal-500" />
+            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-medium">Avg Duration</p>
+            <p className="text-xl font-bold text-white mt-1 tracking-tight">{conversationInsights.avg_duration_seconds > 60 ? `${(conversationInsights.avg_duration_seconds / 60).toFixed(1)}m` : `${conversationInsights.avg_duration_seconds.toFixed(0)}s`}</p>
+          </div>
+          <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-xl p-4 relative overflow-hidden">
+            <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-amber-500 to-orange-500" />
+            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-medium">Abandonment</p>
+            <p className="text-xl font-bold text-white mt-1 tracking-tight">{conversationInsights.abandonment_rate}%</p>
+          </div>
+          <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-xl p-4 relative overflow-hidden">
+            <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-purple-500 to-violet-500" />
+            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-medium">First Response</p>
+            <p className="text-xl font-bold text-white mt-1 tracking-tight">{(conversationInsights.avg_first_response_ms / 1000).toFixed(2)}s</p>
+          </div>
+          <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-xl p-4 relative overflow-hidden">
+            <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-rose-500 to-pink-500" />
+            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-medium">Visitors</p>
+            <p className="text-xl font-bold text-white mt-1 tracking-tight">{userBehavior?.total_unique_visitors || 0}</p>
+            <p className="text-[10px] text-gray-600 mt-0.5">{userBehavior?.new_visitor_ratio || 0}% new</p>
+          </div>
+        </div>
+      )}
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1010,7 +1136,7 @@ export default function AnalyticsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-zinc-900 border border-white/10 rounded-2xl p-6"
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-red-500" />
@@ -1029,7 +1155,7 @@ export default function AnalyticsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="bg-zinc-900 border border-white/10 rounded-2xl p-6"
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-purple-500" />
@@ -1051,7 +1177,7 @@ export default function AnalyticsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-zinc-900 border border-white/10 rounded-2xl p-6"
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <Bot className="w-5 h-5 text-emerald-500" />
@@ -1065,7 +1191,7 @@ export default function AnalyticsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
-          className="bg-zinc-900 border border-white/10 rounded-2xl p-6"
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <Clock className="w-5 h-5 text-amber-500" />
@@ -1080,7 +1206,7 @@ export default function AnalyticsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-zinc-900 border border-white/10 rounded-2xl p-6"
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <Zap className="w-5 h-5 text-blue-500" />
@@ -1097,7 +1223,7 @@ export default function AnalyticsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35 }}
-          className="bg-zinc-900 border border-white/10 rounded-2xl p-6"
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <Globe className="w-5 h-5 text-cyan-500" />
@@ -1112,7 +1238,7 @@ export default function AnalyticsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="bg-zinc-900 border border-white/10 rounded-2xl p-6"
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <Activity className="w-5 h-5 text-orange-500" />
@@ -1121,7 +1247,7 @@ export default function AnalyticsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/10">
+                <tr className="border-b border-white/[0.08]">
                   <th className="text-left py-2 text-gray-400 font-medium">Agent</th>
                   <th className="text-right py-2 text-gray-400 font-medium">Chats</th>
                   <th className="text-right py-2 text-gray-400 font-medium">Avg Time</th>
@@ -1172,9 +1298,294 @@ export default function AnalyticsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.45 }}
-          className="bg-zinc-900 border border-white/10 rounded-2xl p-6"
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
         >
           <KnowledgeGapsPanel workspaceId={workspaceId} />
+        </motion.div>
+      </div>
+
+      {/* Row 5: Top Questions + Day of Week */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Questions */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
+        >
+          <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+            <HelpCircle className="w-5 h-5 text-purple-500" />
+            Top Asked Questions
+          </h3>
+          <p className="text-xs text-gray-500 mb-4">Most frequently asked by users</p>
+          {topQuestions.length > 0 ? (
+            <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+              {topQuestions.map((q, i) => (
+                <div key={i} className="flex items-start justify-between py-2 px-3 rounded-lg bg-white/5 hover:bg-white/8 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-200 truncate">{q.question}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Last asked {new Date(q.last_asked).toLocaleDateString()}</p>
+                  </div>
+                  <span className="ml-3 px-2 py-1 text-xs font-bold rounded-full bg-purple-500/20 text-purple-400 shrink-0">
+                    {q.frequency}×
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-10 text-gray-500 text-sm">
+              <HelpCircle className="w-8 h-8 mx-auto mb-2 opacity-40" />
+              No question data yet
+            </div>
+          )}
+        </motion.div>
+
+        {/* Day of Week */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55 }}
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
+        >
+          <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-teal-500" />
+            Day-of-Week Activity
+          </h3>
+          <p className="text-xs text-gray-500 mb-4">Conversation distribution by day</p>
+          {dayOfWeekData.length > 0 ? (
+            <div className="flex items-end justify-between gap-2 h-48">
+              {dayOfWeekData.map((d, i) => {
+                const maxVal = Math.max(...dayOfWeekData.map(x => x.conversations), 1);
+                const heightPct = (d.conversations / maxVal) * 100;
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-2">
+                    <span className="text-xs text-gray-400">{d.conversations}</span>
+                    <div className="w-full relative" style={{ height: '140px' }}>
+                      <div
+                        className="absolute bottom-0 w-full rounded-t-md bg-gradient-to-t from-teal-600 to-teal-400 transition-all"
+                        style={{ height: `${Math.max(heightPct, 4)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-400 font-medium">{d.day}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-10 text-gray-500 text-sm">
+              No data yet
+            </div>
+          )}
+        </motion.div>
+      </div>
+
+      {/* Row 6: Feedback Analytics + User Behavior */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Feedback Analytics */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
+        >
+          <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+            <ThumbsUp className="w-5 h-5 text-green-500" />
+            Feedback Analytics
+          </h3>
+          <p className="text-xs text-gray-500 mb-4">User satisfaction from thumbs up/down</p>
+          {feedbackStats && feedbackStats.total_feedback > 0 ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 text-center">
+                  <ThumbsUp className="w-4 h-4 text-green-400 mx-auto mb-1" />
+                  <p className="text-lg font-bold text-green-400">{feedbackStats.thumbs_up}</p>
+                  <p className="text-xs text-gray-400">Helpful</p>
+                </div>
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
+                  <ThumbsDown className="w-4 h-4 text-red-400 mx-auto mb-1" />
+                  <p className="text-lg font-bold text-red-400">{feedbackStats.thumbs_down}</p>
+                  <p className="text-xs text-gray-400">Not Helpful</p>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                  <Heart className="w-4 h-4 text-amber-400 mx-auto mb-1" />
+                  <p className="text-lg font-bold text-white">{feedbackStats.satisfaction_score}%</p>
+                  <p className="text-xs text-gray-400">Satisfaction</p>
+                </div>
+              </div>
+              {/* Feedback over time mini chart */}
+              {feedbackOverTime.length > 0 && (
+                <div className="h-24 flex items-end gap-1">
+                  {feedbackOverTime.map((d, i) => {
+                    const total = d.thumbs_up + d.thumbs_down;
+                    return (
+                      <div key={i} className="flex-1 flex flex-col gap-px" title={`${d.date}: ${d.thumbs_up}👍 ${d.thumbs_down}👎`}>
+                        <div className="bg-green-500/60 rounded-t-sm" style={{ height: `${total > 0 ? (d.thumbs_up / Math.max(...feedbackOverTime.map(x => x.thumbs_up + x.thumbs_down), 1)) * 80 : 2}px` }} />
+                        <div className="bg-red-500/60 rounded-b-sm" style={{ height: `${total > 0 ? (d.thumbs_down / Math.max(...feedbackOverTime.map(x => x.thumbs_up + x.thumbs_down), 1)) * 80 : 2}px` }} />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-10 text-gray-500 text-sm">
+              <ThumbsUp className="w-8 h-8 mx-auto mb-2 opacity-40" />
+              No feedback data yet
+            </div>
+          )}
+        </motion.div>
+
+        {/* User Behavior */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.65 }}
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
+        >
+          <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+            <Users className="w-5 h-5 text-indigo-500" />
+            User Behavior
+          </h3>
+          <p className="text-xs text-gray-500 mb-4">Visitor engagement and retention</p>
+          {userBehavior ? (
+            <div className="space-y-4">
+              {/* Visitors donut-like display */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <UserPlus className="w-4 h-4 text-indigo-400" />
+                    <span className="text-xs text-gray-400">New Visitors</span>
+                  </div>
+                  <p className="text-2xl font-bold text-white">{userBehavior.new_visitors}</p>
+                  <p className="text-xs text-indigo-400 mt-1">{userBehavior.new_visitor_ratio}% of total</p>
+                </div>
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <UserCheck className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs text-gray-400">Returning</span>
+                  </div>
+                  <p className="text-2xl font-bold text-white">{userBehavior.returning_visitors}</p>
+                  <p className="text-xs text-emerald-400 mt-1">{userBehavior.total_unique_visitors > 0 ? (100 - userBehavior.new_visitor_ratio).toFixed(1) : 0}% of total</p>
+                </div>
+              </div>
+              <div className="bg-white/5 rounded-xl p-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-400">Conversations per visitor</span>
+                  <span className="text-lg font-bold text-white">{userBehavior.conversations_per_visitor}</span>
+                </div>
+                <div className="mt-2 w-full bg-zinc-800 rounded-full h-2">
+                  <div
+                    className="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all"
+                    style={{ width: `${Math.min(userBehavior.conversations_per_visitor * 20, 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-10 text-gray-500 text-sm">
+              <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
+              No visitor data yet
+            </div>
+          )}
+        </motion.div>
+      </div>
+
+      {/* Row 7: Knowledge Base Stats + Export */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Knowledge Base Stats */}
+        {kbStats && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
+          >
+            <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+              <Database className="w-5 h-5 text-sky-500" />
+              Knowledge Base
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">Source content overview</p>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-sky-500/10 border border-sky-500/20 rounded-xl p-4 text-center">
+                <FileText className="w-5 h-5 text-sky-400 mx-auto mb-1" />
+                <p className="text-2xl font-bold text-white">{kbStats.total_documents}</p>
+                <p className="text-xs text-gray-400">Documents</p>
+              </div>
+              <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-4 text-center">
+                <BarChart2 className="w-5 h-5 text-violet-400 mx-auto mb-1" />
+                <p className="text-2xl font-bold text-white">{kbStats.total_chunks}</p>
+                <p className="text-xs text-gray-400">Chunks</p>
+              </div>
+            </div>
+            {Object.keys(kbStats.documents_by_type).length > 0 && (
+              <div>
+                <p className="text-xs text-gray-400 mb-2 uppercase tracking-wider">By Source Type</p>
+                <div className="space-y-2">
+                  {Object.entries(kbStats.documents_by_type).map(([type, count]) => (
+                    <div key={type} className="flex items-center justify-between py-1">
+                      <span className="text-sm text-gray-300 capitalize">{type}</span>
+                      <span className="text-sm font-bold text-white">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* Export Panel */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.75 }}
+          className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6"
+        >
+          <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+            <Download className="w-5 h-5 text-amber-500" />
+            Export Data
+          </h3>
+          <p className="text-xs text-gray-500 mb-4">Download analytics data as CSV</p>
+          <div className="space-y-3">
+            {[
+              { label: 'Conversations', desc: 'All conversations with metadata', path: 'conversations' },
+              { label: 'Messages', desc: 'All messages with confidence scores', path: 'messages' },
+              { label: 'Knowledge Gaps', desc: 'Unanswered questions report', path: 'knowledge-gaps' },
+            ].map((item) => (
+              <button
+                key={item.path}
+                onClick={async () => {
+                  try {
+                    const params: any = { workspace_id: workspaceId, format: 'csv' };
+                    if (item.path !== 'knowledge-gaps') {
+                      params.start_date = formatDateForAPI(dateRange.start);
+                      params.end_date = formatDateForAPI(dateRange.end);
+                    }
+                    const response = await apiClient.get(`/analytics/export/${item.path}`, {
+                      params,
+                      responseType: 'blob',
+                    });
+                    const url = window.URL.createObjectURL(new Blob([response.data]));
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', `${item.path}_export.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    toast.success(`${item.label} exported!`);
+                  } catch {
+                    toast.error('Export failed');
+                  }
+                }}
+                className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/8 border border-white/5 hover:border-amber-500/30 rounded-xl transition-all group"
+              >
+                <div className="text-left">
+                  <p className="text-sm font-medium text-white group-hover:text-amber-400 transition-colors">{item.label}</p>
+                  <p className="text-xs text-gray-500">{item.desc}</p>
+                </div>
+                <Download className="w-4 h-4 text-gray-500 group-hover:text-amber-400 transition-colors" />
+              </button>
+            ))}
+          </div>
         </motion.div>
       </div>
     </div>

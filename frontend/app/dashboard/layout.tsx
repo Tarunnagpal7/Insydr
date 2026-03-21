@@ -13,7 +13,7 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { isAuthenticated, isInitialized, isLoading } = useAppSelector((state) => state.auth);
+  const { user, isAuthenticated, isInitialized, isLoading } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
     if (!isInitialized) {
@@ -22,10 +22,16 @@ export default function DashboardLayout({
   }, [dispatch, isInitialized]);
 
   useEffect(() => {
+    // Admin strict view block
+    if (isInitialized && isAuthenticated && user?.email === 'admin@gmail.com') {
+      router.push('/admin');
+      return;
+    }
+
     if (isInitialized && !isAuthenticated && !isLoading) {
       router.push('/login');
     }
-  }, [isAuthenticated, isInitialized, isLoading, router]);
+  }, [isAuthenticated, isInitialized, isLoading, router, user]);
 
   if (!isInitialized || isLoading) {
     return (

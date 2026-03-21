@@ -15,8 +15,8 @@ class UnansweredQuestion(UUIDBase, Base):
 
     question: Mapped[str]
     occurrence_count: Mapped[int] = mapped_column(Integer, default=1)
-    status: Mapped[str]
+    status: Mapped[str] = mapped_column(String, default="unresolved")
 
     first_seen_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    resolved_at: Mapped[datetime | None]
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)

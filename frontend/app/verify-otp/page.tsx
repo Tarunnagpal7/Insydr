@@ -161,127 +161,139 @@ function VerifyOTPContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-8 bg-background-secondary text-foreground">
-      <div className="w-full max-w-md">
-        {/* Card */}
-        <div className="bg-background rounded-2xl shadow-xl p-8 border border-border">
-          {/* Logo */}
-          <div className="mb-8">
-            <Logo size="lg" />
+    <div className="min-h-screen flex items-center justify-center bg-zinc-950 relative overflow-hidden text-white selection:bg-red-500/30">
+      {/* Animated Background Orbs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-red-600/20 rounded-full blur-[120px] mix-blend-screen animate-pulse pointer-events-none" style={{ animationDuration: '4s' }} />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-red-900/30 rounded-full blur-[100px] mix-blend-screen animate-pulse pointer-events-none" style={{ animationDuration: '6s', animationDelay: '1s' }} />
+      <div className="absolute top-[20%] right-[10%] w-[30vw] h-[30vw] bg-orange-500/10 rounded-full blur-[80px] mix-blend-screen animate-pulse pointer-events-none" style={{ animationDuration: '5s', animationDelay: '2s' }} />
+      
+      {/* Noise Overlay */}
+      <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
+
+      {/* Glass Container */}
+      <div className="w-full max-w-[420px] p-8 sm:p-10 mx-4 bg-zinc-900/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_0_40px_-10px_rgba(0,0,0,0.5)] relative z-10 animate-fade-in-up">
+        {/* Logo */}
+        <div className="flex justify-center mb-8">
+          <Logo size="lg" />
+        </div>
+
+        {/* Icon */}
+        <div className="w-16 h-16 rounded-2xl bg-zinc-800/50 text-red-500 flex items-center justify-center mx-auto mb-6 shadow-inner ring-1 ring-inset ring-white/10">
+          <MailCheckIcon />
+        </div>
+
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-white mb-2 tracking-tight">
+            Verify your email
+          </h1>
+          <p className="text-zinc-400 text-sm">
+            We've sent a 6-digit code to
+          </p>
+          <p className="text-white font-medium text-sm mt-1">{email}</p>
+        </div>
+
+        {/* Error Alert */}
+        {error && (
+          <div className="flex items-start gap-3 p-4 mb-6 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 animate-fade-in">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-0.5 shrink-0">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" x2="12" y1="8" y2="12" />
+              <line x1="12" x2="12.01" y1="16" y2="16" />
+            </svg>
+            <span className="font-medium text-sm leading-tight">{error}</span>
+          </div>
+        )}
+
+        {/* Success Alert */}
+        {success && (
+          <div className="flex items-start gap-3 p-4 mb-6 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 animate-fade-in">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-0.5 shrink-0">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span className="font-medium text-sm leading-tight">{success}</span>
+          </div>
+        )}
+
+        {/* OTP Form */}
+        <form onSubmit={handleSubmit}>
+          {/* OTP Inputs */}
+          <div className="flex justify-center gap-2 sm:gap-3 mb-8">
+            {otp.map((digit, index) => (
+              <input
+                key={index}
+                ref={(el) => { inputRefs.current[index] = el; }}
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={digit}
+                onChange={(e) => handleChange(index, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(index, e)}
+                className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-bold bg-zinc-950/50 border border-white/10 rounded-xl text-white focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all shadow-sm"
+                disabled={loading}
+              />
+            ))}
           </div>
 
-          {/* Icon */}
-          <div className="w-20 h-20 rounded-2xl bg-milano-50 dark:bg-milano-900/30 text-primary flex items-center justify-center mx-auto mb-6 shadow-inner ring-1 ring-inset ring-milano-100">
-            <MailCheckIcon />
-          </div>
-
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-foreground mb-2">
-              Verify your email
-            </h1>
-            <p className="text-foreground-secondary">
-              We've sent a 6-digit code to
-            </p>
-            <p className="text-foreground font-medium">{email}</p>
-          </div>
-
-          {/* Error Alert */}
-          {error && (
-            <div className="flex items-center gap-3 p-4 mb-6 rounded-xl bg-milano-50 border border-milano-200 text-milano-800 animate-fade-in">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" x2="12" y1="8" y2="12" />
-                <line x1="12" x2="12.01" y1="16" y2="16" />
-              </svg>
-              <span className="font-medium text-sm">{error}</span>
-            </div>
-          )}
-
-          {/* Success Alert */}
-          {success && (
-            <div className="flex items-center gap-3 p-4 mb-6 rounded-xl bg-success/10 border border-success/20 text-success-dark animate-fade-in">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              <span className="font-medium text-sm">{success}</span>
-            </div>
-          )}
-
-          {/* OTP Form */}
-          <form onSubmit={handleSubmit}>
-            {/* OTP Inputs */}
-            <div className="flex justify-center gap-2 sm:gap-3 mb-8">
-              {otp.map((digit, index) => (
-                <input
-                  key={index}
-                  ref={(el) => { inputRefs.current[index] = el; }}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={digit}
-                  onChange={(e) => handleChange(index, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(index, e)}
-                  className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-bold border-2 border-border rounded-xl bg-background text-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all shadow-sm"
-                  disabled={loading}
-                />
-              ))}
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading || otp.some((d) => !d)}
-              className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 mb-4 rounded-xl bg-primary text-white font-semibold hover:bg-primary-hover shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
-            >
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading || otp.some((d) => !d)}
+            className="w-full relative group overflow-hidden rounded-xl mb-6 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-500 transition-transform duration-300 group-hover:scale-[1.02]" />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-20 bg-[url('/noise.png')] mix-blend-overlay transition-opacity duration-300" />
+            <div className="absolute -inset-1 bg-red-400/30 blur-xl group-hover:bg-red-400/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            
+            <div className="relative flex items-center justify-center gap-2 px-6 py-3.5 text-white font-medium shadow-[0_0_20px_rgba(239,68,68,0.2)]">
               {loading ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Verifying...
+                  <span>Verifying...</span>
                 </>
               ) : (
-                "Verify Email"
+                <span>Verify Email</span>
+              )}
+            </div>
+          </button>
+
+          {/* Resend */}
+          <div className="text-center">
+            <p className="text-zinc-400 text-sm mb-2">
+              Didn't receive the code?
+            </p>
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={countdown > 0 || resending}
+              className="text-white hover:text-red-400 font-bold text-sm disabled:opacity-50 disabled:hover:text-white disabled:cursor-not-allowed transition-colors"
+            >
+              {resending ? (
+                "Sending..."
+              ) : countdown > 0 ? (
+                `Resend in ${countdown}s`
+              ) : (
+                "Resend Code"
               )}
             </button>
+          </div>
+        </form>
 
-            {/* Resend */}
-            <div className="text-center">
-              <p className="text-foreground-secondary text-sm mb-2">
-                Didn't receive the code?
-              </p>
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={countdown > 0 || resending}
-                className="text-primary hover:text-primary-hover font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {resending ? (
-                  "Sending..."
-                ) : countdown > 0 ? (
-                  `Resend in ${countdown}s`
-                ) : (
-                  "Resend Code"
-                )}
-              </button>
-            </div>
-          </form>
-
-          {/* Back Link */}
-          <Link
-            href="/login"
-            className="flex items-center justify-center gap-2 text-foreground-secondary hover:text-foreground mt-8 transition-colors font-medium hover:underline underline-offset-2"
-          >
-            <ArrowLeftIcon />
-            Back to login
-          </Link>
-        </div>
-
-        {/* Hint */}
-        <p className="text-center text-foreground-muted text-sm mt-6">
-          Check your spam folder if you don't see the email
-        </p>
+        {/* Back Link */}
+        <Link
+          href="/login"
+          className="flex items-center justify-center gap-2 text-zinc-400 hover:text-white mt-8 transition-colors text-sm font-medium underline-offset-4 hover:underline"
+        >
+          <ArrowLeftIcon />
+          Back to login
+        </Link>
       </div>
+
+      {/* Hint */}
+      <p className="absolute bottom-8 text-center text-zinc-500 text-sm mt-6 animate-fade-in z-10">
+        Check your spam folder if you don't see the email
+      </p>
     </div>
   );
 }

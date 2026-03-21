@@ -20,18 +20,30 @@ interface Message {
 interface WidgetSettings {
   theme: 'light' | 'dark' | 'auto';
   primaryColor: string;
+  accentColor: string;
   position: 'bottom-right' | 'bottom-left';
   welcomeMessage: string;
-
+  subtitle: string;
+  suggestedQuestions: string[];
+  autoOpenDelay: number;
+  borderRadius: number;
+  shadowStyle: 'none' | 'subtle' | 'medium' | 'strong';
+  soundEnabled: boolean;
   showPoweredBy: boolean;
 }
 
 const DEFAULT_WIDGET_SETTINGS: WidgetSettings = {
   theme: 'auto',
-  primaryColor: '#EF4444', // Red-500
+  primaryColor: '#EF4444',
+  accentColor: '#3B82F6',
   position: 'bottom-right',
   welcomeMessage: 'Hello! How can I help you today?',
-
+  subtitle: '',
+  suggestedQuestions: [],
+  autoOpenDelay: 0,
+  borderRadius: 16,
+  shadowStyle: 'medium',
+  soundEnabled: false,
   showPoweredBy: true,
 };
 
@@ -47,6 +59,7 @@ export default function AgentDetailsPage() {
   // Widget Customization State
   const [widgetSettings, setWidgetSettings] = useState<WidgetSettings>(DEFAULT_WIDGET_SETTINGS);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [suggestedQInput, setSuggestedQInput] = useState('');
   
   // Settings State
   const [domainInput, setDomainInput] = useState('');
@@ -817,21 +830,179 @@ export default function AgentDetailsPage() {
                                          className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:border-red-500 outline-none resize-none"
                                      />
                                      <p className="text-[10px] text-gray-500 mt-1">These instructions are appended to the agent's system prompt.</p>
-                                 </div>
+                                </div>
+                              </div>
 
-                                  <div className="flex items-center gap-3">
-                                      <input 
-                                        type="checkbox" 
-                                        id="showPoweredBy"
-                                        checked={widgetSettings.showPoweredBy}
-                                        onChange={(e) => {
-                                            setWidgetSettings(p => ({ ...p, showPoweredBy: e.target.checked }));
-                                            setHasUnsavedChanges(true);
-                                        }}
-                                        className="rounded border-gray-600 bg-zinc-800 text-red-600 focus:ring-red-600"
+                              {/* Section: Advanced Widget Settings */}
+                              <div className="space-y-4 pt-4 border-t border-white/5">
+                                  <h3 className="text-sm font-semibold text-gray-400 uppercase flex items-center gap-2">
+                                      <Sparkles className="w-4 h-4" /> Advanced Widget Settings
+                                  </h3>
+
+                                  {/* Subtitle */}
+                                  <div>
+                                      <label className="block text-sm text-gray-300 mb-1">Header Subtitle</label>
+                                      <input
+                                          type="text"
+                                          value={widgetSettings.subtitle}
+                                          onChange={(e) => {
+                                              setWidgetSettings(p => ({ ...p, subtitle: e.target.value }));
+                                              setHasUnsavedChanges(true);
+                                          }}
+                                          placeholder="e.g. Typically replies in seconds"
+                                          className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 outline-none"
                                       />
-                                      <label htmlFor="showPoweredBy" className="text-sm text-gray-300">Show "Powered by Insydr"</label>
                                   </div>
+
+                                  {/* Suggested Questions */}
+                                  <div>
+                                      <label className="block text-sm text-gray-300 mb-1">Suggested Questions</label>
+                                      <p className="text-[10px] text-gray-500 mb-2">Quick reply buttons shown to visitors (max 5)</p>
+                                      <div className="flex gap-2 mb-2">
+                                          <input
+                                              type="text"
+                                              value={suggestedQInput}
+                                              onChange={(e) => setSuggestedQInput(e.target.value)}
+                                              onKeyDown={(e) => {
+                                                  if (e.key === 'Enter' && suggestedQInput.trim() && widgetSettings.suggestedQuestions.length < 5) {
+                                                      e.preventDefault();
+                                                      setWidgetSettings(p => ({ ...p, suggestedQuestions: [...p.suggestedQuestions, suggestedQInput.trim()] }));
+                                                      setSuggestedQInput('');
+                                                      setHasUnsavedChanges(true);
+                                                  }
+                                              }}
+                                              placeholder="Type a question and press Enter"
+                                              className="flex-1 bg-zinc-800 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:border-red-500 outline-none"
+                                          />
+                                          <button
+                                              type="button"
+                                              disabled={!suggestedQInput.trim() || widgetSettings.suggestedQuestions.length >= 5}
+                                              onClick={() => {
+                                                  if (suggestedQInput.trim()) {
+                                                      setWidgetSettings(p => ({ ...p, suggestedQuestions: [...p.suggestedQuestions, suggestedQInput.trim()] }));
+                                                      setSuggestedQInput('');
+                                                      setHasUnsavedChanges(true);
+                                                  }
+                                              }}
+                                              className="px-3 py-1.5 text-sm font-medium bg-red-600 text-white rounded-lg disabled:opacity-50"
+                                          >
+                                              Add
+                                          </button>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1.5">
+                                          {widgetSettings.suggestedQuestions.map((q, i) => (
+                                              <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-zinc-800 border border-white/10 rounded-full text-xs text-gray-300">
+                                                  {q}
+                                                  <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                          setWidgetSettings(p => ({ ...p, suggestedQuestions: p.suggestedQuestions.filter((_, idx) => idx !== i) }));
+                                                          setHasUnsavedChanges(true);
+                                                      }}
+                                                      className="text-gray-500 hover:text-red-400 ml-1"
+                                                  >
+                                                      <X className="w-3 h-3" />
+                                                  </button>
+                                              </span>
+                                          ))}
+                                      </div>
+                                  </div>
+
+                                  {/* Auto-Open Delay */}
+                                  <div>
+                                      <label className="block text-sm text-gray-300 mb-1">Auto-Open Delay</label>
+                                      <select
+                                          value={widgetSettings.autoOpenDelay}
+                                          onChange={(e) => {
+                                              setWidgetSettings(p => ({ ...p, autoOpenDelay: parseInt(e.target.value) }));
+                                              setHasUnsavedChanges(true);
+                                          }}
+                                          className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 outline-none"
+                                      >
+                                          <option value={0}>Disabled</option>
+                                          <option value={3}>3 seconds</option>
+                                          <option value={5}>5 seconds</option>
+                                          <option value={10}>10 seconds</option>
+                                          <option value={15}>15 seconds</option>
+                                      </select>
+                                      <p className="text-[10px] text-gray-500 mt-1">Automatically open the widget after this delay on page load</p>
+                                  </div>
+
+                                  {/* Accent Color */}
+                                  <div>
+                                      <label className="block text-sm text-gray-300 mb-1">Accent Color</label>
+                                      <div className="flex items-center gap-3">
+                                          <input
+                                              type="color"
+                                              value={widgetSettings.accentColor}
+                                              onChange={(e) => {
+                                                  setWidgetSettings(p => ({ ...p, accentColor: e.target.value }));
+                                                  setHasUnsavedChanges(true);
+                                              }}
+                                              className="w-8 h-8 rounded-lg border border-white/10 cursor-pointer"
+                                          />
+                                          <span className="text-xs text-gray-400 font-mono">{widgetSettings.accentColor}</span>
+                                      </div>
+                                  </div>
+
+                                  {/* Border Radius */}
+                                  <div>
+                                      <div className="flex items-center justify-between mb-1">
+                                          <label className="text-sm text-gray-300">Border Radius</label>
+                                          <span className="text-xs text-gray-400 font-mono">{widgetSettings.borderRadius}px</span>
+                                      </div>
+                                      <input
+                                          type="range"
+                                          min="0"
+                                          max="24"
+                                          step="2"
+                                          value={widgetSettings.borderRadius}
+                                          onChange={(e) => {
+                                              setWidgetSettings(p => ({ ...p, borderRadius: parseInt(e.target.value) }));
+                                              setHasUnsavedChanges(true);
+                                          }}
+                                          className="w-full accent-red-500 h-1.5"
+                                      />
+                                  </div>
+
+                                  {/* Shadow Style */}
+                                  <div>
+                                      <label className="block text-sm text-gray-300 mb-1">Shadow Style</label>
+                                      <div className="flex gap-1.5">
+                                          {(['none', 'subtle', 'medium', 'strong'] as const).map(s => (
+                                              <button
+                                                  key={s}
+                                                  type="button"
+                                                  onClick={() => {
+                                                      setWidgetSettings(p => ({ ...p, shadowStyle: s }));
+                                                      setHasUnsavedChanges(true);
+                                                  }}
+                                                  className={classNames(
+                                                      "px-2.5 py-1.5 rounded-md text-[11px] font-medium border capitalize transition-all",
+                                                      widgetSettings.shadowStyle === s
+                                                          ? "border-red-500 bg-red-500/10 text-red-400"
+                                                          : "border-white/10 bg-white/5 text-gray-400 hover:border-white/20"
+                                                  )}
+                                              >
+                                                  {s}
+                                              </button>
+                                          ))}
+                                      </div>
+                                  </div>
+
+                                   <div className="flex items-center gap-3">
+                                       <input 
+                                         type="checkbox" 
+                                         id="showPoweredBy"
+                                         checked={widgetSettings.showPoweredBy}
+                                         onChange={(e) => {
+                                             setWidgetSettings(p => ({ ...p, showPoweredBy: e.target.checked }));
+                                             setHasUnsavedChanges(true);
+                                         }}
+                                         className="rounded border-gray-600 bg-zinc-800 text-red-600 focus:ring-red-600"
+                                       />
+                                       <label htmlFor="showPoweredBy" className="text-sm text-gray-300">Show "Powered by Insydr"</label>
+                                   </div>
                              </div>
 
                         </div>

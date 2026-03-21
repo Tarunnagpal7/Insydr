@@ -15,12 +15,13 @@ from app.api.schemas.auth import (
 )
 from app.db.models.user import User
 from app.core.config import settings
+from app.api.middleware.rate_limit import rate_limit
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/signup", response_model=OTPResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/signup", response_model=OTPResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit(10, 60, "auth"))])
 async def signup(
     request: SignupRequest,
     auth_service: AuthService = Depends(get_auth_service)
@@ -47,7 +48,7 @@ async def signup(
         )
 
 
-@router.post("/login", response_model=AuthResponse)
+@router.post("/login", response_model=AuthResponse, dependencies=[Depends(rate_limit(15, 60, "auth"))])
 async def login(
     request: LoginRequest,
     auth_service: AuthService = Depends(get_auth_service)
@@ -104,7 +105,7 @@ async def verify_otp(
         )
 
 
-@router.post("/forgot-password", response_model=MessageResponse)
+@router.post("/forgot-password", response_model=MessageResponse, dependencies=[Depends(rate_limit(5, 60, "auth"))])
 async def forgot_password(
     request: ForgotPasswordRequest,
     auth_service: AuthService = Depends(get_auth_service)

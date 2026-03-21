@@ -84,6 +84,7 @@ if (agentId) {
             <App 
                 agentId={agentId} 
                 apiBase={apiBase}
+                apiKey={apiKey}
                 pageData={pageData}
             />
         </React.StrictMode>

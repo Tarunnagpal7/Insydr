@@ -1,79 +1,204 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, MessageSquare, X, ChevronDown, Sparkles, AlertCircle } from 'lucide-react';
-import classNames from 'classnames';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { MessageSquare, X, Send, Trash2, ThumbsUp, ThumbsDown, FileText, ChevronDown } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
-/**
- * Insydr Chat Widget App
- * 
- * This component handles the chat UI and communicates with the Insydr backend.
- * 
- * Flow:
- * 1. On mount, sends /widget/init request with page data
- * 2. Backend validates domain and returns session_id + config
- * 3. Chat messages are sent to /widget/chat with session_id
- * 4. Events (open, close, feedback) are tracked via /widget/event
- */
+// ─── Relative time helper ───
+function timeAgo(date) {
+  const seconds = Math.floor((Date.now() - date) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
 
-export default function App({ agentId, apiBase, pageData }) {
+// ─── Source Citation Badge ───
+function SourceBadge({ source, index, onClick }) {
+  return (
+    <button
+      onClick={() => onClick(source)}
+      className="insydr-source-badge"
+      title={source.title}
+    >
+      <FileText size={10} />
+      <span>{index + 1}. {source.title.length > 25 ? source.title.slice(0, 25) + '…' : source.title}</span>
+    </button>
+  );
+}
+
+// ─── Source Popover ───
+function SourcePopover({ source, onClose }) {
+  if (!source) return null;
+  return (
+    <div className="insydr-source-popover">
+      <div className="insydr-source-popover-header">
+        <FileText size={14} />
+        <span>{source.title}</span>
+        <button onClick={onClose}><X size={14} /></button>
+      </div>
+      <div className="insydr-source-popover-body">
+        <p>Relevance: {Math.round(source.score * 100)}%</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Typing indicator ───
+function TypingIndicator() {
+  return (
+    <div className="insydr-typing">
+      <span></span><span></span><span></span>
+    </div>
+  );
+}
+
+// ─── Message Component ───
+function ChatMessage({ msg, config, agentId, sessionId, apiBase, onFeedback }) {
+  const [feedback, setFeedback] = useState(null);
+  const [activeSource, setActiveSource] = useState(null);
+
+  const handleFeedback = async (type) => {
+    if (feedback) return;
+    setFeedback(type);
+    onFeedback(msg.id, type);
+    
+    if (msg.messageId) {
+      try {
+        await fetch(`${apiBase}/widget/feedback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agent_id: agentId,
+            session_id: sessionId,
+            message_id: msg.messageId,
+            feedback_type: type,
+          }),
+        });
+      } catch (e) {
+        console.warn('Feedback send failed:', e);
+      }
+    }
+  };
+
+  const isBot = msg.role === 'assistant';
+  const isUser = msg.role === 'user';
+
+  return (
+    <div className={`insydr-msg ${isUser ? 'insydr-msg-user' : 'insydr-msg-bot'}`}>
+      {isBot && config?.avatarUrl && (
+        <img src={config.avatarUrl} alt="" className="insydr-avatar" />
+      )}
+      <div className="insydr-msg-bubble-wrap">
+        <div
+          className={`insydr-msg-bubble ${isUser ? 'insydr-bubble-user' : 'insydr-bubble-bot'}`}
+          style={isUser ? { backgroundColor: config?.primaryColor || '#EF4444' } : {}}
+        >
+          {isBot ? (
+            <div className="insydr-markdown">
+              <ReactMarkdown>{msg.content}</ReactMarkdown>
+            </div>
+          ) : (
+            <span>{msg.content}</span>
+          )}
+        </div>
+
+        {/* Source citations */}
+        {isBot && msg.sources && msg.sources.length > 0 && (
+          <div className="insydr-sources">
+            {msg.sources.map((src, i) => (
+              <SourceBadge key={i} source={src} index={i} onClick={setActiveSource} />
+            ))}
+          </div>
+        )}
+
+        {activeSource && (
+          <SourcePopover source={activeSource} onClose={() => setActiveSource(null)} />
+        )}
+
+        <div className="insydr-msg-meta">
+          <span className="insydr-time">{timeAgo(msg.timestamp)}</span>
+          {isBot && msg.content && (
+            <div className="insydr-feedback-btns">
+              <button
+                onClick={() => handleFeedback('thumbs_up')}
+                className={`insydr-fb-btn ${feedback === 'thumbs_up' ? 'active-up' : ''}`}
+                disabled={!!feedback}
+                title="Helpful"
+              >
+                <ThumbsUp size={12} />
+              </button>
+              <button
+                onClick={() => handleFeedback('thumbs_down')}
+                className={`insydr-fb-btn ${feedback === 'thumbs_down' ? 'active-down' : ''}`}
+                disabled={!!feedback}
+                title="Not helpful"
+              >
+                <ThumbsDown size={12} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Main App ───
+export default function App({ agentId, apiBase, apiKey, pageData }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [initError, setInitError] = useState(null);
-  
-  // Session and config from backend
   const [sessionId, setSessionId] = useState(null);
   const [config, setConfig] = useState(null);
-  
-  // Chat state
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [error, setError] = useState(null);
+  const [showScrollDown, setShowScrollDown] = useState(false);
+
   const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
+  const textareaRef = useRef(null);
 
-  // Initialize widget on mount
+  // ─── Auto-scroll ───
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
   useEffect(() => {
-    initializeWidget();
-  }, [agentId]);
+    if (!sending) scrollToBottom();
+  }, [messages, sending, scrollToBottom]);
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    if (isOpen && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages.length, isOpen]);
+  // Detect if user scrolled up
+  const handleScroll = () => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setShowScrollDown(!atBottom);
+  };
 
-  // Track widget open/close events
-  useEffect(() => {
-    if (isInitialized && sessionId) {
-      trackEvent(isOpen ? 'widget_open' : 'widget_close');
-    }
-  }, [isOpen, isInitialized]);
-
-  /**
-   * Initialize widget with backend
-   * Sends page data and receives session + config
-   */
-  const initializeWidget = async () => {
-    setIsInitializing(true);
-    setInitError(null);
-
+  // ─── Initialize ───
+  const initializeWidget = useCallback(async () => {
+    if (isInitialized) return;
     try {
-      const response = await fetch(`${apiBase}/widget/init`, {
+      const res = await fetch(`${apiBase}/widget/init`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(pageData),
+        body: JSON.stringify({
+          agent_id: agentId,
+          api_key: apiKey,
+          page_url: pageData?.url || window.location.href,
+          page_title: pageData?.title || document.title,
+          referrer: document.referrer,
+          language: navigator.language,
+        }),
       });
+      const data = await res.json();
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to initialize widget');
-      }
-
-      const data = await response.json();
-      
       if (!data.allowed) {
-        setInitError(data.error || 'This domain is not authorized to use this widget');
-        setIsInitializing(false);
+        setError(data.error || 'Widget not allowed on this domain.');
         return;
       }
 
@@ -81,85 +206,34 @@ export default function App({ agentId, apiBase, pageData }) {
       setConfig(data.widget_settings);
       setIsInitialized(true);
 
-      // Set welcome message
+      // Welcome message
       if (data.widget_settings?.welcomeMessage) {
         setMessages([{
           id: 'welcome',
           role: 'assistant',
           content: data.widget_settings.welcomeMessage,
+          timestamp: Date.now(),
         }]);
       }
 
-      console.log('[Insydr] Widget initialized successfully', { sessionId: data.session_id });
-
-    } catch (error) {
-      console.error('[Insydr] Initialization error:', error);
-      setInitError(error.message || 'Failed to load chat widget');
-    } finally {
-      setIsInitializing(false);
-    }
-  };
-
-  /**
-   * Send chat message to backend
-   */
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!input.trim() || sending || !sessionId) return;
-
-    const userMsg = { 
-      role: 'user', 
-      content: input, 
-      id: Date.now().toString() 
-    };
-    
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
-    setSending(true);
-
-    try {
-      const response = await fetch(`${apiBase}/widget/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent_id: agentId,
-          session_id: sessionId,
-          message: userMsg.content,
-          page_url: pageData.page_url,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to send message');
+      // Auto-open with delay
+      const autoDelay = data.widget_settings?.autoOpenDelay;
+      if (autoDelay && autoDelay > 0 && !isOpen) {
+        setTimeout(() => setIsOpen(true), autoDelay * 1000);
       }
-
-      const data = await response.json();
-      
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: data.response, 
-        id: data.message_id || (Date.now() + 1).toString() 
-      }]);
-
-    } catch (error) {
-      console.error('[Insydr] Chat error:', error);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: "Sorry, something went wrong. Please try again.", 
-        id: (Date.now() + 1).toString(),
-        isError: true 
-      }]);
-    } finally {
-      setSending(false);
+    } catch (e) {
+      console.error('Widget init error:', e);
+      setError('Failed to connect. Please try again.');
     }
-  };
+  }, [agentId, apiBase, apiKey, pageData, isInitialized, isOpen]);
 
-  /**
-   * Track analytics events
-   */
-  const trackEvent = async (eventType, eventData = {}) => {
+  useEffect(() => {
+    initializeWidget();
+  }, [initializeWidget]);
+
+  // ─── Track open/close ───
+  const trackEvent = useCallback(async (eventType, eventData = {}) => {
     if (!sessionId) return;
-
     try {
       await fetch(`${apiBase}/widget/event`, {
         method: 'POST',
@@ -171,163 +245,395 @@ export default function App({ agentId, apiBase, pageData }) {
           event_data: eventData,
         }),
       });
-    } catch (error) {
-      console.error('[Insydr] Event tracking error:', error);
+    } catch (e) { /* silent */ }
+  }, [agentId, apiBase, sessionId]);
+
+  const toggleWidget = () => {
+    const next = !isOpen;
+    setIsOpen(next);
+    trackEvent(next ? 'widget_open' : 'widget_close');
+  };
+
+  // ─── Send message (streaming) ───
+  const handleSendMessage = async (e) => {
+    e?.preventDefault?.();
+    const text = input.trim();
+    if (!text || sending || !sessionId) return;
+
+    const userMsg = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: text,
+      timestamp: Date.now(),
+    };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setSending(true);
+    setIsStreaming(true);
+
+    // Add placeholder bot message
+    const botMsgId = `bot-${Date.now()}`;
+    setMessages(prev => [...prev, {
+      id: botMsgId,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      streaming: true,
+    }]);
+
+    try {
+      const res = await fetch(`${apiBase}/widget/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_id: agentId,
+          session_id: sessionId,
+          message: text,
+          page_url: window.location.href,
+        }),
+      });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let sources = [];
+      let messageId = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim();
+          
+          if (payload === '[DONE]') continue;
+          
+          try {
+            const data = JSON.parse(payload);
+            
+            if (data.token) {
+              setMessages(prev => prev.map(m =>
+                m.id === botMsgId
+                  ? { ...m, content: m.content + data.token }
+                  : m
+              ));
+              scrollToBottom();
+            }
+            
+            if (data.sources) {
+              sources = data.sources;
+            }
+            
+            if (data.message_id) {
+              messageId = data.message_id;
+            }
+          } catch (parseErr) {
+            // Skip malformed JSON
+          }
+        }
+      }
+
+      // Finalize the message
+      setMessages(prev => prev.map(m =>
+        m.id === botMsgId
+          ? { ...m, streaming: false, sources, messageId }
+          : m
+      ));
+
+    } catch (err) {
+      console.error('Stream error:', err);
+      setMessages(prev => prev.map(m =>
+        m.id === botMsgId
+          ? { ...m, content: 'Sorry, something went wrong. Please try again.', streaming: false }
+          : m
+      ));
+    } finally {
+      setSending(false);
+      setIsStreaming(false);
     }
   };
 
-  // Loading state
-  if (isInitializing) {
-    return (
-      <div className="fixed bottom-6 right-6 z-[999999]">
-        <div className="w-14 h-14 rounded-full bg-gray-200 animate-pulse flex items-center justify-center">
-          <div className="w-6 h-6 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-        </div>
-      </div>
-    );
-  }
+  // ─── Quick reply ───
+  const handleQuickReply = (question) => {
+    setInput(question);
+    // Send immediately
+    const text = question.trim();
+    if (!text || sending || !sessionId) return;
 
-  // Error state (domain not allowed)
-  if (initError) {
-    return (
-      <div className="fixed bottom-6 right-6 z-[999999]">
-        <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center cursor-pointer group" title={initError}>
-          <AlertCircle className="w-7 h-7 text-red-500" />
-        </div>
-      </div>
-    );
-  }
-
-  // Not initialized
-  if (!isInitialized || !config) return null;
-
-  const settings = {
-    primaryColor: config.primaryColor || '#EF4444',
-    position: config.position || 'bottom-right',
-    agentName: config.agentName || 'Support',
-    showPoweredBy: config.showPoweredBy !== false,
-    theme: config.theme || 'auto',
+    const userMsg = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: text,
+      timestamp: Date.now(),
+    };
+    
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    
+    // Trigger send via effect
+    setTimeout(() => {
+      const fakeEvent = { preventDefault: () => {} };
+      // We need to manually trigger the stream since input was set and cleared
+      sendStream(text);
+    }, 0);
   };
 
-  const getPositionClasses = () => {
-    switch (settings.position) {
-      case 'bottom-left': return 'bottom-6 left-6';
-      case 'top-right': return 'top-6 right-6';
-      case 'top-left': return 'top-6 left-6';
-      default: return 'bottom-6 right-6';
+  // Extracted send logic
+  const sendStream = async (text) => {
+    if (!text || sending || !sessionId) return;
+    setSending(true);
+    setIsStreaming(true);
+
+    const botMsgId = `bot-${Date.now()}`;
+    setMessages(prev => [...prev, {
+      id: botMsgId,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      streaming: true,
+    }]);
+
+    try {
+      const res = await fetch(`${apiBase}/widget/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_id: agentId,
+          session_id: sessionId,
+          message: text,
+          page_url: window.location.href,
+        }),
+      });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let sources = [];
+      let messageId = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim();
+          if (payload === '[DONE]') continue;
+          try {
+            const data = JSON.parse(payload);
+            if (data.token) {
+              setMessages(prev => prev.map(m =>
+                m.id === botMsgId ? { ...m, content: m.content + data.token } : m
+              ));
+              scrollToBottom();
+            }
+            if (data.sources) sources = data.sources;
+            if (data.message_id) messageId = data.message_id;
+          } catch { /* skip */ }
+        }
+      }
+
+      setMessages(prev => prev.map(m =>
+        m.id === botMsgId ? { ...m, streaming: false, sources, messageId } : m
+      ));
+    } catch (err) {
+      setMessages(prev => prev.map(m =>
+        m.id === botMsgId ? { ...m, content: 'Sorry, something went wrong.', streaming: false } : m
+      ));
+    } finally {
+      setSending(false);
+      setIsStreaming(false);
     }
   };
+
+  // ─── Clear chat ───
+  const clearChat = () => {
+    setMessages(config?.welcomeMessage ? [{
+      id: 'welcome',
+      role: 'assistant',
+      content: config.welcomeMessage,
+      timestamp: Date.now(),
+    }] : []);
+  };
+
+  // ─── Keyboard (Enter/Shift+Enter) ───
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage(e);
+    }
+  };
+
+  // ─── Auto-resize textarea ───
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 100) + 'px';
+    }
+  }, [input]);
+
+  // ─── Theme ───
+  const resolvedTheme = (() => {
+    const t = config?.theme || 'auto';
+    if (t === 'auto') {
+      return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return t;
+  })();
+
+  // ─── Position ───
+  const position = config?.position || 'bottom-right';
+  const isLeft = position === 'bottom-left';
+
+  // ─── Primary color ───
+  const primaryColor = config?.primaryColor || '#EF4444';
+  const accentColor = config?.accentColor || '#3B82F6';
+  const borderRadius = config?.borderRadius ?? 16;
+
+  // Don't render if error
+  if (error) return null;
+
+  const showSuggestions = config?.suggestedQuestions?.length > 0 && messages.length <= 1;
 
   return (
-    <div className={`fixed z-[999999] flex flex-col items-end gap-4 ${getPositionClasses()} font-sans`}>
-      {/* Chat Window */}
-      <div 
-        className={classNames(
-          "w-[350px] max-w-[90vw] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right border border-gray-200",
-          {
-            'h-[500px] opacity-100 scale-100': isOpen,
-            'h-0 opacity-0 scale-90 pointer-events-none': !isOpen
-          }
-        )}
-      >
-        {/* Header */}
-        <div 
-          className="p-4 text-white flex items-center justify-between shadow-sm" 
-          style={{ backgroundColor: settings.primaryColor }}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-              <MessageSquare className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <p className="font-semibold text-sm leading-tight">{settings.agentName}</p>
-              <div className="flex items-center gap-1.5 opacity-80">
-                <span className="w-1.5 h-1.5 bg-green-400 rounded-full shadow-[0_0_4px_rgba(74,222,128,0.5)]"></span>
-                <span className="text-xs">Online</span>
+    <div
+      className={`insydr-widget ${resolvedTheme}`}
+      style={{
+        '--insydr-primary': primaryColor,
+        '--insydr-accent': accentColor,
+        '--insydr-radius': `${borderRadius}px`,
+        [isLeft ? 'left' : 'right']: '20px',
+        bottom: '20px',
+        position: 'fixed',
+        zIndex: 2147483647,
+        fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      }}
+    >
+      {/* ─── Chat Window ─── */}
+      {isOpen && isInitialized && (
+        <div className={`insydr-window ${resolvedTheme}`} style={{ borderRadius: `${borderRadius}px`, [isLeft ? 'left' : 'right']: 0 }}>
+          {/* Header */}
+          <div className="insydr-header" style={{ background: primaryColor }}>
+            <div className="insydr-header-left">
+              {config?.avatarUrl && (
+                <img src={config.avatarUrl} alt="" className="insydr-header-avatar" />
+              )}
+              <div>
+                <div className="insydr-header-name">{config?.agentName || 'Assistant'}</div>
+                {config?.subtitle && (
+                  <div className="insydr-header-subtitle">{config.subtitle}</div>
+                )}
               </div>
+            </div>
+            <div className="insydr-header-actions">
+              <button onClick={clearChat} title="Clear chat" className="insydr-header-btn">
+                <Trash2 size={16} />
+              </button>
+              <button onClick={toggleWidget} title="Close" className="insydr-header-btn">
+                <X size={18} />
+              </button>
             </div>
           </div>
-          <button 
-            onClick={() => setIsOpen(false)} 
-            className="text-white/80 hover:text-white transition-colors"
+
+          {/* Messages */}
+          <div
+            className="insydr-messages"
+            ref={chatContainerRef}
+            onScroll={handleScroll}
           >
-            <ChevronDown className="w-6 h-6" />
-          </button>
-        </div>
+            {messages.map((msg) => (
+              <ChatMessage
+                key={msg.id}
+                msg={msg}
+                config={config}
+                agentId={agentId}
+                sessionId={sessionId}
+                apiBase={apiBase}
+                onFeedback={() => {}}
+              />
+            ))}
 
-        {/* Messages */}
-        <div className="flex-1 bg-gray-50 p-4 overflow-y-auto space-y-4">
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div 
-                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-sm
-                  ${msg.role === 'user' 
-                    ? 'text-white rounded-br-none' 
-                    : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
-                  }
-                  ${msg.isError ? 'bg-red-50 border-red-200 text-red-600' : ''}
-                `}
-                style={msg.role === 'user' && !msg.isError ? { backgroundColor: settings.primaryColor } : {}}
-              >
-                {msg.content}
+            {/* Streaming typing indicator */}
+            {isStreaming && messages[messages.length - 1]?.content === '' && (
+              <div className="insydr-msg insydr-msg-bot">
+                <div className="insydr-msg-bubble-wrap">
+                  <div className="insydr-msg-bubble insydr-bubble-bot">
+                    <TypingIndicator />
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
-          
-          {sending && (
-            <div className="flex justify-start">
-              <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none px-4 py-3 flex gap-1 shadow-sm">
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
-              </div>
-            </div>
-          )}
-          
-          <div ref={messagesEndRef} />
-        </div>
+            )}
 
-        {/* Footer */}
-        <div className="p-3 bg-white border-t border-gray-100">
-          <form onSubmit={handleSendMessage} className="relative flex items-center">
-            <input 
-              className="w-full bg-gray-100/50 border border-gray-200 text-gray-800 text-sm rounded-full pl-4 pr-10 py-2.5 focus:outline-none focus:border-gray-400 focus:bg-white transition-all"
-              placeholder="Type a message..."
-              value={input}
-              onChange={e => setInput(e.target.value)}
-            />
-            <button 
-              type="submit" 
-              disabled={!input.trim() || sending}
-              className="absolute right-1.5 p-1.5 bg-white rounded-full shadow-sm text-gray-500 hover:text-gray-700 disabled:opacity-50 transition-colors"
-              style={{ color: input.trim() ? settings.primaryColor : undefined }}
-            >
-              <Send className="w-4 h-4" />
+
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Scroll-down button */}
+          {showScrollDown && (
+            <button className="insydr-scroll-down" onClick={scrollToBottom}>
+              <ChevronDown size={16} />
             </button>
-          </form>
-          
-          {settings.showPoweredBy && (
-            <a 
-              href="https://insydr.ai" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="block text-center mt-2 no-underline hover:opacity-80 transition-opacity"
-            >
-              <p className="text-[10px] text-gray-400 flex items-center justify-center gap-1">
-                <Sparkles className="w-3 h-3" /> Powered by <span className="font-bold text-gray-500">Insydr</span>
-              </p>
-            </a>
           )}
-        </div>
-      </div>
 
-      {/* Launcher Button */}
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-14 h-14 rounded-full shadow-[0_4px_14px_rgba(0,0,0,0.16)] flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-95 z-50"
-        style={{ backgroundColor: settings.primaryColor }}
+          {/* Suggested questions — pinned above input */}
+          {showSuggestions && (
+            <div className="insydr-suggestions">
+              {config.suggestedQuestions.map((q, i) => (
+                <button key={i} className="insydr-suggestion-btn" onClick={() => handleQuickReply(q)}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Input */}
+          <div className="insydr-input-area">
+            <form onSubmit={handleSendMessage} className="insydr-input-form">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type a message..."
+                rows={1}
+                disabled={sending}
+                className="insydr-input"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || sending}
+                className="insydr-send-btn"
+                style={{ backgroundColor: primaryColor }}
+              >
+                <Send size={16} />
+              </button>
+            </form>
+
+            {config?.showPoweredBy && (
+              <div className="insydr-powered">
+                Powered by <a href="https://insydr.ai" target="_blank" rel="noopener noreferrer">Insydr</a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Launcher ─── */}
+      <button
+        className="insydr-launcher"
+        onClick={toggleWidget}
+        style={{ backgroundColor: primaryColor }}
       >
-        {isOpen ? <X className="w-7 h-7" /> : <MessageSquare className="w-7 h-7" />}
+        {isOpen ? <X size={24} color="#fff" /> : <MessageSquare size={24} color="#fff" />}
       </button>
     </div>
   );

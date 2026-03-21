@@ -295,6 +295,30 @@ export default function WorkspaceSettingsPage() {
       </motion.div>
       )}
 
+      {/* Billing */}
+      {isAdmin && (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.28 }}
+        className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 cursor-pointer hover:border-white/20 transition-all group"
+        onClick={() => window.location.href = `/workspace/${currentWorkspace.id}/settings/billing`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-emerald-500/10 rounded-xl group-hover:bg-emerald-500/20 transition-colors">
+              <ShieldCheckIcon className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-white">Billing & Subscription</h2>
+              <p className="text-sm text-gray-400">Manage your plan, view usage, and billing history</p>
+            </div>
+          </div>
+          <ChevronRightIcon className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
+        </div>
+      </motion.div>
+      )}
+
       {/* Danger Zone */}
       {isAdmin && (
       <motion.div

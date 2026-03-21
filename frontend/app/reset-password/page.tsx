@@ -118,176 +118,201 @@ function ResetPasswordContent() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-8 bg-background-secondary text-foreground">
-        <div className="w-full max-w-md">
-          <div className="bg-background rounded-2xl shadow-xl p-8 border border-border text-center">
-            {/* Logo */}
-            <div className="mb-8">
-              <Logo size="lg" />
-            </div>
+      <div className="min-h-screen flex items-center justify-center bg-zinc-950 relative overflow-hidden text-white selection:bg-red-500/30">
+        {/* Animated Background Orbs */}
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-red-600/20 rounded-full blur-[120px] mix-blend-screen animate-pulse pointer-events-none" style={{ animationDuration: '4s' }} />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-red-900/30 rounded-full blur-[100px] mix-blend-screen animate-pulse pointer-events-none" style={{ animationDuration: '6s', animationDelay: '1s' }} />
+        <div className="absolute top-[20%] right-[10%] w-[30vw] h-[30vw] bg-orange-500/10 rounded-full blur-[80px] mix-blend-screen animate-pulse pointer-events-none" style={{ animationDuration: '5s', animationDelay: '2s' }} />
+        
+        {/* Noise Overlay */}
+        <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
 
-            {/* Success Icon */}
-            <div className="w-20 h-20 rounded-full bg-success/10 text-success flex items-center justify-center mx-auto mb-6">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </div>
-
-            <h1 className="text-2xl font-bold text-foreground mb-2">
-              Password Reset Complete
-            </h1>
-            <p className="text-foreground-secondary mb-8">
-              Your password has been successfully reset. You can now log in with your new password.
-            </p>
-
-            <Link href="/login" className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-primary text-white font-semibold hover:bg-primary-hover shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-200">
-              Continue to Login
-            </Link>
+        {/* Glass Container */}
+        <div className="w-full max-w-[420px] p-8 sm:p-10 mx-4 bg-zinc-900/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_0_40px_-10px_rgba(0,0,0,0.5)] relative z-10 animate-fade-in-up text-center">
+          {/* Logo */}
+          <div className="flex justify-center mb-8">
+            <Logo size="lg" />
           </div>
+
+          {/* Success Icon */}
+          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto mb-6 shadow-inner ring-1 ring-inset ring-emerald-500/20">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </div>
+
+          <h1 className="text-2xl font-bold text-white mb-2 tracking-tight">
+            Password Reset Complete
+          </h1>
+          <p className="text-zinc-400 text-sm mb-8">
+            Your password has been successfully reset. You can now log in with your new password.
+          </p>
+
+          <Link href="/login" className="w-full relative group overflow-hidden rounded-xl inline-flex">
+            <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-500 transition-transform duration-300 group-hover:scale-[1.02]" />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-20 bg-[url('/noise.png')] mix-blend-overlay transition-opacity duration-300" />
+            <div className="absolute -inset-1 bg-red-400/30 blur-xl group-hover:bg-red-400/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            
+            <div className="w-full relative flex items-center justify-center gap-2 px-6 py-3.5 text-white font-medium shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+              Continue to Login
+            </div>
+          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-8 bg-background-secondary text-foreground">
-      <div className="w-full max-w-md">
-        {/* Card */}
-        <div className="bg-background rounded-2xl shadow-xl p-8 border border-border">
-          {/* Logo */}
-          <div className="mb-8">
-            <Logo size="lg" />
+    <div className="min-h-screen flex items-center justify-center bg-zinc-950 relative overflow-hidden text-white selection:bg-red-500/30">
+      {/* Animated Background Orbs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-red-600/20 rounded-full blur-[120px] mix-blend-screen animate-pulse pointer-events-none" style={{ animationDuration: '4s' }} />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-red-900/30 rounded-full blur-[100px] mix-blend-screen animate-pulse pointer-events-none" style={{ animationDuration: '6s', animationDelay: '1s' }} />
+      <div className="absolute top-[20%] right-[10%] w-[30vw] h-[30vw] bg-orange-500/10 rounded-full blur-[80px] mix-blend-screen animate-pulse pointer-events-none" style={{ animationDuration: '5s', animationDelay: '2s' }} />
+      
+      {/* Noise Overlay */}
+      <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
+
+      {/* Glass Container */}
+      <div className="w-full max-w-[420px] p-8 sm:p-10 mx-4 bg-zinc-900/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_0_40px_-10px_rgba(0,0,0,0.5)] relative z-10 animate-fade-in-up">
+        {/* Logo */}
+        <div className="flex justify-center mb-8">
+          <Logo size="lg" />
+        </div>
+
+        {/* Icon */}
+        <div className="w-16 h-16 rounded-2xl bg-zinc-800/50 text-red-500 flex items-center justify-center mx-auto mb-6 shadow-inner ring-1 ring-inset ring-white/10">
+          <ShieldCheckIcon />
+        </div>
+
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-white mb-2 tracking-tight">
+            Set new password
+          </h1>
+          <p className="text-zinc-400 text-sm">
+            Your new password must be different from previously used passwords.
+          </p>
+        </div>
+
+        {/* Error Alert */}
+        {error && (
+          <div className="flex items-start gap-3 p-4 mb-6 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 animate-fade-in">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-0.5 shrink-0">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" x2="12" y1="8" y2="12" />
+              <line x1="12" x2="12.01" y1="16" y2="16" />
+            </svg>
+            <span className="font-medium text-sm leading-tight">{error}</span>
           </div>
+        )}
 
-          {/* Icon */}
-          <div className="w-20 h-20 rounded-2xl bg-milano-50 dark:bg-milano-900/30 text-primary flex items-center justify-center mx-auto mb-6 shadow-inner ring-1 ring-inset ring-milano-100">
-            <ShieldCheckIcon />
-          </div>
-
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-foreground mb-2">
-              Set new password
-            </h1>
-            <p className="text-foreground-secondary">
-              Your new password must be different from previously used passwords.
-            </p>
-          </div>
-
-          {/* Error Alert */}
-          {error && (
-            <div className="flex items-center gap-3 p-4 mb-6 rounded-xl bg-milano-50 border border-milano-200 text-milano-800 animate-fade-in">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" x2="12" y1="8" y2="12" />
-                <line x1="12" x2="12.01" y1="16" y2="16" />
-              </svg>
-              <span className="font-medium text-sm">{error}</span>
-            </div>
-          )}
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* New Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-foreground mb-2">
-                New Password
-              </label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted">
-                  <LockIcon />
-                </div>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-12 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-medium"
-                  placeholder="••••••••"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground transition-colors p-1 rounded-md"
-                >
-                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                </button>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* New Password */}
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-zinc-300 mb-1.5 ml-1">
+              New Password
+            </label>
+            <div className="relative group">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-red-400 transition-colors">
+                <LockIcon />
               </div>
-
-              {/* Password Strength */}
-              {formData.password && (
-                <div className="mt-3 space-y-2 animate-fade-in">
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-colors ${passwordChecks.minLength ? 'bg-success text-white' : 'bg-border'}`}>
-                      {passwordChecks.minLength && <CheckIcon />}
-                    </div>
-                    <span className={passwordChecks.minLength ? 'text-success font-medium' : 'text-foreground-muted'}>
-                      At least 8 characters
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-colors ${passwordChecks.hasNumber ? 'bg-success text-white' : 'bg-border'}`}>
-                      {passwordChecks.hasNumber && <CheckIcon />}
-                    </div>
-                    <span className={passwordChecks.hasNumber ? 'text-success font-medium' : 'text-foreground-muted'}>
-                      Contains a number
-                    </span>
-                  </div>
-                </div>
-              )}
+              <input
+                type={showPassword ? "text" : "password"}
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                className="w-full pl-11 pr-11 py-3 bg-zinc-950/50 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all sm:text-sm"
+                placeholder="••••••••"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors p-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/10"
+              >
+                {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
             </div>
 
-            {/* Confirm Password */}
-            <div>
-              <label htmlFor="confirm_password" className="block text-sm font-semibold text-foreground mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted">
-                  <LockIcon />
+            {/* Password Strength */}
+            {formData.password && (
+              <div className="mt-3 ml-1 space-y-1.5 animate-fade-in">
+                <div className="flex items-center gap-2 text-xs">
+                  <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-colors ${passwordChecks.minLength ? 'bg-emerald-500 text-white' : 'bg-white/10 text-transparent'}`}>
+                    {passwordChecks.minLength && <CheckIcon />}
+                  </div>
+                  <span className={passwordChecks.minLength ? 'text-emerald-400 font-medium' : 'text-zinc-500'}>
+                    At least 8 characters
+                  </span>
                 </div>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  id="confirm_password"
-                  name="confirm_password"
-                  value={formData.confirm_password}
-                  onChange={handleChange}
-                  className={`w-full pl-12 pr-4 py-3 rounded-xl border bg-background text-foreground focus:outline-none focus:ring-4 transition-all font-medium ${
-                    formData.confirm_password && formData.password !== formData.confirm_password 
-                      ? 'border-error focus:border-error focus:ring-error/10' 
-                      : 'border-border focus:border-primary focus:ring-primary/10'
-                  }`}
-                  placeholder="••••••••"
-                  required
-                />
+                <div className="flex items-center gap-2 text-xs">
+                  <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-colors ${passwordChecks.hasNumber ? 'bg-emerald-500 text-white' : 'bg-white/10 text-transparent'}`}>
+                    {passwordChecks.hasNumber && <CheckIcon />}
+                  </div>
+                  <span className={passwordChecks.hasNumber ? 'text-emerald-400 font-medium' : 'text-zinc-500'}>
+                    Contains a number
+                  </span>
+                </div>
               </div>
-              {formData.confirm_password && formData.password !== formData.confirm_password && (
-                <p className="text-error text-sm mt-2 flex items-center gap-1 font-medium animate-fade-in">
-                  Passwords do not match
-                </p>
-              )}
-            </div>
+            )}
+          </div>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-primary text-white font-semibold hover:bg-primary-hover shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
-            >
+          {/* Confirm Password */}
+          <div>
+            <label htmlFor="confirm_password" className="block text-sm font-medium text-zinc-300 mb-1.5 ml-1">
+              Confirm Password
+            </label>
+            <div className="relative group">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-red-400 transition-colors">
+                <LockIcon />
+              </div>
+              <input
+                type={showPassword ? "text" : "password"}
+                id="confirm_password"
+                name="confirm_password"
+                value={formData.confirm_password}
+                onChange={handleChange}
+                className={`w-full pl-11 pr-4 py-3 bg-zinc-950/50 border rounded-xl text-white focus:outline-none focus:ring-2 transition-all sm:text-sm ${
+                  formData.confirm_password && formData.password !== formData.confirm_password 
+                    ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20' 
+                    : 'border-white/10 focus:border-red-500/50 focus:ring-red-500/20 placeholder:text-zinc-600'
+                }`}
+                placeholder="••••••••"
+                required
+              />
+            </div>
+            {formData.confirm_password && formData.password !== formData.confirm_password && (
+              <p className="text-red-400 text-xs mt-2 ml-1 flex items-center gap-1 font-medium animate-fade-in">
+                Passwords do not match
+              </p>
+            )}
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full relative group overflow-hidden rounded-xl mt-6 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-500 transition-transform duration-300 group-hover:scale-[1.02]" />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-20 bg-[url('/noise.png')] mix-blend-overlay transition-opacity duration-300" />
+            <div className="absolute -inset-1 bg-red-400/30 blur-xl group-hover:bg-red-400/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            
+            <div className="relative flex items-center justify-center gap-2 px-6 py-3.5 text-white font-medium shadow-[0_0_20px_rgba(239,68,68,0.2)]">
               {loading ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Resetting...
+                  <span>Resetting...</span>
                 </>
               ) : (
-                "Reset Password"
+                <span>Reset Password</span>
               )}
-            </button>
-          </form>
-        </div>
+            </div>
+          </button>
+        </form>
       </div>
     </div>
   );

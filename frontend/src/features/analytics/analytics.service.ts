@@ -134,6 +134,115 @@ export const analyzeKnowledgeGaps = async (
   return response.data;
 };
 
+// ═══════════════════════════════════════════
+// NEW Types
+// ═══════════════════════════════════════════
+
+export interface FeedbackStats {
+  thumbs_up: number;
+  thumbs_down: number;
+  total_feedback: number;
+  satisfaction_score: number;
+}
+
+export interface FeedbackOverTimePoint {
+  date: string;
+  thumbs_up: number;
+  thumbs_down: number;
+}
+
+export interface ConversationInsights {
+  total_conversations: number;
+  avg_messages_per_conversation: number;
+  abandonment_rate: number;
+  avg_duration_seconds: number;
+  avg_first_response_ms: number;
+}
+
+export interface DayOfWeekPoint {
+  day: string;
+  day_index: number;
+  conversations: number;
+}
+
+export interface TopQuestion {
+  question: string;
+  frequency: number;
+  last_asked: string;
+}
+
+export interface UserBehavior {
+  total_unique_visitors: number;
+  new_visitors: number;
+  returning_visitors: number;
+  new_visitor_ratio: number;
+  conversations_per_visitor: number;
+  total_conversations: number;
+}
+
+export interface KnowledgeBaseStats {
+  total_documents: number;
+  total_chunks: number;
+  documents_by_type: Record<string, number>;
+  documents_by_status: Record<string, number>;
+}
+
+// ═══════════════════════════════════════════
+// NEW API Functions
+// ═══════════════════════════════════════════
+
+export const getFeedbackStats = async (params: AnalyticsQueryParams): Promise<FeedbackStats> => {
+  const response = await apiClient.get<FeedbackStats>('/analytics/feedback-stats', { params });
+  return response.data;
+};
+
+export const getFeedbackOverTime = async (params: AnalyticsQueryParams): Promise<FeedbackOverTimePoint[]> => {
+  const response = await apiClient.get<FeedbackOverTimePoint[]>('/analytics/feedback-over-time', { params });
+  return response.data;
+};
+
+export const getConversationInsights = async (params: AnalyticsQueryParams): Promise<ConversationInsights> => {
+  const response = await apiClient.get<ConversationInsights>('/analytics/conversation-insights', { params });
+  return response.data;
+};
+
+export const getDayOfWeekDistribution = async (params: AnalyticsQueryParams): Promise<DayOfWeekPoint[]> => {
+  const response = await apiClient.get<DayOfWeekPoint[]>('/analytics/day-of-week', { params });
+  return response.data;
+};
+
+export const getTopQuestions = async (
+  params: AnalyticsQueryParams & { limit?: number }
+): Promise<TopQuestion[]> => {
+  const response = await apiClient.get<TopQuestion[]>('/analytics/top-questions', { params });
+  return response.data;
+};
+
+export const getUserBehavior = async (params: AnalyticsQueryParams): Promise<UserBehavior> => {
+  const response = await apiClient.get<UserBehavior>('/analytics/user-behavior', { params });
+  return response.data;
+};
+
+export const getKnowledgeBaseStats = async (params: { workspace_id: string }): Promise<KnowledgeBaseStats> => {
+  const response = await apiClient.get<KnowledgeBaseStats>('/analytics/knowledge-base-stats', { params });
+  return response.data;
+};
+
+export const exportConversationsCSV = (params: AnalyticsQueryParams): string => {
+  const searchParams = new URLSearchParams({ ...params, format: 'csv' } as Record<string, string>);
+  return `/analytics/export/conversations?${searchParams.toString()}`;
+};
+
+export const exportMessagesCSV = (params: AnalyticsQueryParams): string => {
+  const searchParams = new URLSearchParams({ ...params, format: 'csv' } as Record<string, string>);
+  return `/analytics/export/messages?${searchParams.toString()}`;
+};
+
+export const exportKnowledgeGapsCSV = (params: { workspace_id: string }): string => {
+  const searchParams = new URLSearchParams({ ...params, format: 'csv' } as Record<string, string>);
+  return `/analytics/export/knowledge-gaps?${searchParams.toString()}`;
+};
+
 // Helper functions
 export const formatDateForAPI = (date: Date): string => {
   return date.toISOString().split('T')[0];
@@ -162,3 +271,4 @@ export const getDateRangePreset = (preset: string): { start: Date; end: Date } =
 
   return { start, end };
 };
+

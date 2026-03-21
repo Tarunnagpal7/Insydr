@@ -237,6 +237,12 @@ RESPONSE_STYLE_MODIFIERS: Dict[str, str] = {
 
 FOLLOW_UP_PROMPT = """
 
+LANGUAGE RULE (MANDATORY — ALWAYS APPLY FIRST):
+- Detect the language of the user's message and ALWAYS respond in that SAME language.
+- If the user writes in Hindi, respond in Hindi. If in Spanish, respond in Spanish. If in French, respond in French. And so on for any language.
+- Do NOT translate the user's question. Mirror their language exactly.
+- This rule overrides all other formatting or tone instructions if there is a conflict.
+
 FOLLOW-UP & ENGAGEMENT RULES (ALWAYS APPLY):
 - End every response with 1-2 relevant follow-up questions to keep the conversation going.
 - If the user shows interest in a product/service, ask qualifying questions (needs, timeline, budget).

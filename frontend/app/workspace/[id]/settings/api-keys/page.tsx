@@ -9,7 +9,6 @@ import {
   TrashIcon, 
   ClipboardIcon, 
   CheckIcon,
-  GlobeAltIcon,
   NoSymbolIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
@@ -29,7 +28,6 @@ export default function ApiKeysPage() {
 
   // Form State
   const [keyName, setKeyName] = useState('');
-  const [domains, setDomains] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -55,21 +53,15 @@ export default function ApiKeysPage() {
 
     try {
       setIsSubmitting(true);
-      const domainList = domains
-        .split(',')
-        .map(d => d.trim())
-        .filter(d => d.length > 0);
 
       const response = await apiKeyApi.create(workspaceId, {
         name: keyName,
-        allowed_domains: domainList.length > 0 ? domainList : undefined,
       });
 
       setNewKeyData(response.data);
       setIsCreateModalOpen(false);
       setIsSuccessModalOpen(true);
       setKeyName('');
-      setDomains('');
       fetchKeys();
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || 'Failed to create API key');
@@ -127,7 +119,6 @@ export default function ApiKeysPage() {
                 <tr className="border-b border-white/10 bg-white/5">
                   <th className="px-6 py-4 text-sm font-medium text-gray-400">Name</th>
                   <th className="px-6 py-4 text-sm font-medium text-gray-400">Key Prefix</th>
-                  <th className="px-6 py-4 text-sm font-medium text-gray-400">Allowed Domains</th>
                   <th className="px-6 py-4 text-sm font-medium text-gray-400">Created</th>
                   <th className="px-6 py-4 text-sm font-medium text-gray-400">Requests</th>
                   <th className="px-6 py-4 text-sm font-medium text-gray-400">Last Used</th>
@@ -154,19 +145,7 @@ export default function ApiKeysPage() {
                     <td className="px-6 py-4 font-mono text-sm text-gray-300">
                       {key.key_prefix}...
                     </td>
-                    <td className="px-6 py-4">
-                      {key.allowed_domains && key.allowed_domains.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {key.allowed_domains.map((domain, i) => (
-                            <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                              {domain}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-green-400 bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">All Domains</span>
-                      )}
-                    </td>
+
                     <td className="px-6 py-4 text-sm text-gray-400">
                       {new Date(key.created_at).toLocaleDateString()}
                     </td>
@@ -238,22 +217,6 @@ export default function ApiKeysPage() {
                       />
                     </div>
                     
-                    <div>
-                      <label className="block text-sm font-medium text-gray-400 mb-1">
-                        Allowed Domains <span className="text-xs text-gray-500">(Optional)</span>
-                      </label>
-                      <div className="relative">
-                        <GlobeAltIcon className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
-                        <input 
-                          type="text" 
-                          className="block w-full rounded-xl bg-black/50 border border-white/10 pl-10 pr-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
-                          placeholder="example.com, localhost"
-                          value={domains}
-                          onChange={(e) => setDomains(e.target.value)}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">Comma separated list of domains. Leave empty to allow all.</p>
-                    </div>
 
                     <div className="mt-6 flex justify-end gap-3">
                       <button

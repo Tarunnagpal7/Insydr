@@ -121,218 +121,205 @@ function SignupForm() {
   };
 
   return (
-    <div className="min-h-screen flex bg-background text-foreground">
-      {/* Left Side - Decorative */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary via-milano-800 to-milano-950 items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('/noise.png')] opacity-10 mix-blend-overlay" />
-        <div className="max-w-lg text-center text-white relative z-10">
-          <div className="w-20 h-20 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-8 backdrop-blur-md border border-white/20 shadow-xl">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-            </svg>
-          </div>
-          <h2 className="text-4xl font-bold mb-6 tracking-tight">
-            Join Thousands of Businesses
-          </h2>
-          <p className="text-white/80 text-lg leading-relaxed">
-            Start building intelligent AI chatbots in minutes. No coding required, just your knowledge.
-          </p>
+    <div className="min-h-screen flex items-center justify-center bg-zinc-950 relative overflow-hidden text-white selection:bg-red-500/30">
+      {/* Animated Background Orbs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-red-600/20 rounded-full blur-[120px] mix-blend-screen animate-pulse pointer-events-none" style={{ animationDuration: '4s' }} />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-red-900/30 rounded-full blur-[100px] mix-blend-screen animate-pulse pointer-events-none" style={{ animationDuration: '6s', animationDelay: '1s' }} />
+      <div className="absolute top-[20%] right-[10%] w-[30vw] h-[30vw] bg-orange-500/10 rounded-full blur-[80px] mix-blend-screen animate-pulse pointer-events-none" style={{ animationDuration: '5s', animationDelay: '2s' }} />
+      
+      {/* Noise Overlay */}
+      <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] mix-blend-overlay pointer-events-none" />
 
-          {/* Decorative Elements */}
-          <div className="mt-12 flex justify-center gap-4">
-            <div className="w-3 h-3 rounded-full bg-white" />
-            <div className="w-3 h-3 rounded-full bg-white/50" />
-            <div className="w-3 h-3 rounded-full bg-white/30" />
-          </div>
+      {/* Glass Container */}
+      <div className="w-full max-w-[420px] p-8 sm:p-10 mx-4 bg-zinc-900/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_0_40px_-10px_rgba(0,0,0,0.5)] relative z-10 animate-fade-in-up">
+        {/* Logo */}
+        <div className="flex justify-center mb-8">
+          <Logo size="lg" />
         </div>
-      </div>
 
-      {/* Right Side - Form */}
-      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 md:p-12 lg:p-16">
-        <div className="w-full max-w-md">
-          {/* Logo */}
-          <div className="mb-10">
-            <Logo size="lg" />
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-white mb-2 tracking-tight">
+            Create your account
+          </h1>
+          <p className="text-zinc-400 text-sm">
+            Start building intelligent AI chatbots today
+          </p>
+        </div>
+
+        {/* Error Alert */}
+        {error && (
+          <div className="flex items-start gap-3 p-4 mb-6 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 animate-fade-in">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-0.5 shrink-0">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" x2="12" y1="8" y2="12" />
+              <line x1="12" x2="12.01" y1="16" y2="16" />
+            </svg>
+            <span className="font-medium text-sm leading-tight">{error}</span>
+          </div>
+        )}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Full Name */}
+          <div>
+            <label htmlFor="full_name" className="block text-sm font-medium text-zinc-300 mb-1.5 ml-1">
+              Full Name
+            </label>
+            <div className="relative group">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-red-400 transition-colors">
+                <UserIcon />
+              </div>
+              <input
+                type="text"
+                id="full_name"
+                name="full_name"
+                value={formData.full_name}
+                onChange={handleChange}
+                className="w-full pl-11 pr-4 py-3 bg-zinc-950/50 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all sm:text-sm"
+                placeholder="John Doe"
+                required
+              />
+            </div>
           </div>
 
-          {/* Header */}
-          <div className="mb-10">
-            <h1 className="text-3xl font-bold text-foreground mb-3 tracking-tight">
-              Create your account
-            </h1>
-            <p className="text-foreground-secondary text-lg">
-              Start your free trial. No credit card required.
-            </p>
+          {/* Email */}
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-zinc-300 mb-1.5 ml-1">
+              Email Address
+            </label>
+            <div className="relative group">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-red-400 transition-colors">
+                <MailIcon />
+              </div>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="w-full pl-11 pr-4 py-3 bg-zinc-950/50 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all sm:text-sm"
+                placeholder="name@example.com"
+                required
+              />
+            </div>
           </div>
 
-          {/* Error Alert */}
-          {error && (
-            <div className="flex items-center gap-3 p-4 mb-6 rounded-xl bg-milano-50 border border-milano-200 text-milano-800 animate-fade-in">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" x2="12" y1="8" y2="12" />
-                <line x1="12" x2="12.01" y1="16" y2="16" />
-              </svg>
-              <span className="font-medium text-sm">{error}</span>
-            </div>
-          )}
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Full Name */}
-            <div>
-              <label htmlFor="full_name" className="block text-sm font-semibold text-foreground mb-2">
-                Full Name
-              </label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted">
-                  <UserIcon />
-                </div>
-                <input
-                  type="text"
-                  id="full_name"
-                  name="full_name"
-                  value={formData.full_name}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-4 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-medium"
-                  placeholder="John Doe"
-                  required
-                />
+          {/* Password */}
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-zinc-300 mb-1.5 ml-1">
+              Password
+            </label>
+            <div className="relative group">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-red-400 transition-colors">
+                <LockIcon />
               </div>
+              <input
+                type={showPassword ? "text" : "password"}
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                className="w-full pl-11 pr-11 py-3 bg-zinc-950/50 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all sm:text-sm"
+                placeholder="••••••••"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors p-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/10"
+              >
+                {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
             </div>
 
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-foreground mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted">
-                  <MailIcon />
-                </div>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-4 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-medium"
-                  placeholder="name@example.com"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-foreground mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted">
-                  <LockIcon />
-                </div>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-12 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-medium"
-                  placeholder="••••••••"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground transition-colors p-1 rounded-md"
-                >
-                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                </button>
-              </div>
-
-              {/* Password Strength */}
-              {formData.password && (
-                <div className="mt-3 space-y-2 animate-fade-in">
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-colors ${passwordChecks.minLength ? 'bg-success text-white' : 'bg-border'}`}>
-                      {passwordChecks.minLength && <CheckIcon />}
-                    </div>
-                    <span className={passwordChecks.minLength ? 'text-success font-medium' : 'text-foreground-muted'}>
-                      At least 8 characters
-                    </span>
+            {/* Password Strength */}
+            {formData.password && (
+              <div className="mt-3 ml-1 space-y-1.5 animate-fade-in">
+                <div className="flex items-center gap-2 text-xs">
+                  <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-colors ${passwordChecks.minLength ? 'bg-emerald-500 text-white' : 'bg-white/10 text-transparent'}`}>
+                    {passwordChecks.minLength && <CheckIcon />}
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-colors ${passwordChecks.hasNumber ? 'bg-success text-white' : 'bg-border'}`}>
-                      {passwordChecks.hasNumber && <CheckIcon />}
-                    </div>
-                    <span className={passwordChecks.hasNumber ? 'text-success font-medium' : 'text-foreground-muted'}>
-                      Contains a number
-                    </span>
+                  <span className={passwordChecks.minLength ? 'text-emerald-400 font-medium' : 'text-zinc-500'}>
+                    At least 8 characters
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-colors ${passwordChecks.hasNumber ? 'bg-emerald-500 text-white' : 'bg-white/10 text-transparent'}`}>
+                    {passwordChecks.hasNumber && <CheckIcon />}
                   </div>
+                  <span className={passwordChecks.hasNumber ? 'text-emerald-400 font-medium' : 'text-zinc-500'}>
+                    Contains a number
+                  </span>
                 </div>
-              )}
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label htmlFor="confirm_password" className="block text-sm font-semibold text-foreground mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted">
-                  <LockIcon />
-                </div>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  id="confirm_password"
-                  name="confirm_password"
-                  value={formData.confirm_password}
-                  onChange={handleChange}
-                  className={`w-full pl-12 pr-4 py-3 rounded-xl border bg-background text-foreground focus:outline-none focus:ring-4 transition-all font-medium ${
-                    formData.confirm_password && formData.password !== formData.confirm_password 
-                      ? 'border-error focus:border-error focus:ring-error/10' 
-                      : 'border-border focus:border-primary focus:ring-primary/10'
-                  }`}
-                  placeholder="••••••••"
-                  required
-                />
               </div>
-              {formData.confirm_password && formData.password !== formData.confirm_password && (
-                <p className="text-error text-sm mt-2 flex items-center gap-1 font-medium animate-fade-in">
-                  Passwords do not match
-                </p>
-              )}
-            </div>
+            )}
+          </div>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-primary text-white font-semibold hover:bg-primary-hover shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none mt-2"
-            >
+          {/* Confirm Password */}
+          <div>
+            <label htmlFor="confirm_password" className="block text-sm font-medium text-zinc-300 mb-1.5 ml-1">
+              Confirm Password
+            </label>
+            <div className="relative group">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-red-400 transition-colors">
+                <LockIcon />
+              </div>
+              <input
+                type={showPassword ? "text" : "password"}
+                id="confirm_password"
+                name="confirm_password"
+                value={formData.confirm_password}
+                onChange={handleChange}
+                className={`w-full pl-11 pr-4 py-3 bg-zinc-950/50 border rounded-xl text-white focus:outline-none focus:ring-2 transition-all sm:text-sm ${
+                  formData.confirm_password && formData.password !== formData.confirm_password 
+                    ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20' 
+                    : 'border-white/10 focus:border-red-500/50 focus:ring-red-500/20 placeholder:text-zinc-600'
+                }`}
+                placeholder="••••••••"
+                required
+              />
+            </div>
+            {formData.confirm_password && formData.password !== formData.confirm_password && (
+              <p className="text-red-400 text-xs mt-2 ml-1 flex items-center gap-1 font-medium animate-fade-in">
+                Passwords do not match
+              </p>
+            )}
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full relative group overflow-hidden rounded-xl mt-6 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-500 transition-transform duration-300 group-hover:scale-[1.02]" />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-20 bg-[url('/noise.png')] mix-blend-overlay transition-opacity duration-300" />
+            <div className="absolute -inset-1 bg-red-400/30 blur-xl group-hover:bg-red-400/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            
+            <div className="relative flex items-center justify-center gap-2 px-6 py-3.5 text-white font-medium shadow-[0_0_20px_rgba(239,68,68,0.2)]">
               {loading ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Creating account...
+                  <span>Creating account...</span>
                 </>
               ) : (
-                "Create Account"
+                <span>Create Account</span>
               )}
-            </button>
-          </form>
+            </div>
+          </button>
+        </form>
 
-          {/* Login Link */}
-          <p className="text-center text-foreground-secondary mt-8 font-medium">
-            Already have an account?{" "}
-            <Link
-              href="/login"
-              className="text-primary hover:text-primary-hover font-bold hover:underline underline-offset-2 transition-colors"
-            >
-              Sign in
-            </Link>
-          </p>
-        </div>
+        {/* Login Link */}
+        <p className="text-center text-zinc-400 text-sm mt-8">
+          Already have an account?{" "}
+          <Link
+            href="/login"
+            className="text-white font-medium hover:text-red-400 transition-colors underline-offset-4 hover:underline"
+          >
+            Sign in
+          </Link>
+        </p>
       </div>
     </div>
   );

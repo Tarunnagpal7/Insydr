@@ -11,12 +11,14 @@ from app.db.models.user import User
 from app.rag.graph import RAGGraph
 from app.rag.retriever import Retriever
 from app.core.agent_templates import get_all_agent_types
+from app.core.cache import cache_response
 
 router = APIRouter()
 
 # ============ AGENT TYPES ============
 
 @router.get("/types")
+@cache_response(ttl_seconds=3600, key_prefix="cache:agent_types")
 async def list_agent_types():
     """
     Returns all available agent type templates with their metadata.
@@ -255,6 +257,41 @@ async def toggle_agent_active(
     new_state = not agent.is_active
     updated = await service.toggle_active(agent_id, new_state)
     return updated
+
+
+# ============ DUPLICATE ============
+
+@router.post("/{agent_id}/duplicate", response_model=AgentResponse)
+async def duplicate_agent(
+    agent_id: UUID,
+    current_user: User = Depends(deps.get_current_user),
+    service: AgentService = Depends(deps.get_agent_service),
+):
+    """
+    Duplicate an existing agent with all its settings.
+    Creates a new agent with the same configuration but a '(Copy)' suffix.
+    """
+    agent = await service.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    try:
+        new_agent = await service.create_agent(
+            workspace_id=agent.workspace_id,
+            name=f"{agent.name} (Copy)",
+            description=agent.description,
+            agent_type=agent.agent_type,
+            configuration=agent.configuration,
+            behavior_settings=agent.behavior_settings,
+            allowed_domains=agent.allowed_domains,
+        )
+        return new_agent
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to duplicate agent: {str(e)}")
 
 
 # ============ CTA EMAIL VERIFICATION ============

@@ -1,7 +1,9 @@
 from typing import List, Optional
 import os
+import asyncio
 from huggingface_hub import InferenceClient
 from app.core.config import settings
+from app.core.cache import get_embedding_cache, set_embedding_cache
 
 class EmbeddingService:
     def __init__(self):
@@ -31,7 +33,15 @@ class EmbeddingService:
         # Clean text
         text = text.replace("\n", " ")
         
-        # API call
+        # 1. Check Cache
+        try:
+            cached = asyncio.run(get_embedding_cache(text))
+            if cached:
+                return cached
+        except Exception as e:
+            pass  # Ignore if not in async context or redis failed
+
+        # 2. API call
         # We use feature_extraction to get the embedding vector
         try:
             response = self.client.feature_extraction(text, model=self.model)
@@ -80,6 +90,11 @@ class EmbeddingService:
                           length = len(response)
                           if length > 0:
                               avg = [x / length for x in avg]
+                              # Save to cache
+                              try:
+                                  asyncio.run(set_embedding_cache(text, avg))
+                              except Exception:
+                                  pass
                               return avg
                           else:
                               return [0.0] * dim
@@ -88,6 +103,14 @@ class EmbeddingService:
                           print(f"Unexpected embedding format: {response[:1]}...")
                           return [0.0] * 384
              
+             try:
+                 asyncio.run(set_embedding_cache(text, response))
+             except Exception:
+                 pass
              return response
             
+        try:
+            asyncio.run(set_embedding_cache(text, response))
+        except Exception:
+            pass
         return response

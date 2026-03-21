@@ -4,6 +4,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     DATABASE_URL: str
+    REDIS_URL: str = "redis://localhost:6379/0"
     
     # JWT Settings
     JWT_SECRET_KEY: str = "insydr-secret-key-change-in-production-2026"

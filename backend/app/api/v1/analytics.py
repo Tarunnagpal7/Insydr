@@ -258,3 +258,185 @@ async def analyze_knowledge_gaps(
     )
     analysis = await service.analyze_knowledge_gaps(questions)
     return {"analysis": analysis}
+
+
+# ═══════════════════════════════════════════
+# NEW ENDPOINTS
+# ═══════════════════════════════════════════
+
+@router.get("/feedback-stats")
+async def get_feedback_stats(
+    workspace_id: UUID,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    current_user: User = Depends(deps.get_current_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+):
+    """Feedback thumbs up/down ratio and satisfaction score."""
+    return await service.get_feedback_stats(workspace_id, start_date, end_date)
+
+
+@router.get("/feedback-over-time")
+async def get_feedback_over_time(
+    workspace_id: UUID,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    current_user: User = Depends(deps.get_current_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+):
+    """Feedback trends (thumbs up/down per day)."""
+    return await service.get_feedback_over_time(workspace_id, start_date, end_date)
+
+
+@router.get("/conversation-insights")
+async def get_conversation_insights(
+    workspace_id: UUID,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    current_user: User = Depends(deps.get_current_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+):
+    """Avg duration, avg messages/conversation, abandonment rate, time to first response."""
+    return await service.get_conversation_insights(workspace_id, start_date, end_date)
+
+
+@router.get("/day-of-week")
+async def get_day_of_week_distribution(
+    workspace_id: UUID,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    current_user: User = Depends(deps.get_current_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+):
+    """Conversation distribution by day of week."""
+    return await service.get_day_of_week_distribution(workspace_id, start_date, end_date)
+
+
+@router.get("/top-questions")
+async def get_top_questions(
+    workspace_id: UUID,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    limit: int = Query(20, le=50),
+    current_user: User = Depends(deps.get_current_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+):
+    """Top asked questions with frequency counts."""
+    return await service.get_top_questions(workspace_id, start_date, end_date, limit)
+
+
+@router.get("/user-behavior")
+async def get_user_behavior(
+    workspace_id: UUID,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    current_user: User = Depends(deps.get_current_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+):
+    """New vs returning visitors, engagement metrics."""
+    return await service.get_user_behavior(workspace_id, start_date, end_date)
+
+
+@router.get("/knowledge-base-stats")
+async def get_knowledge_base_stats(
+    workspace_id: UUID,
+    current_user: User = Depends(deps.get_current_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+):
+    """Knowledge base overview: total docs, chunks, by type and status."""
+    return await service.get_knowledge_base_stats(workspace_id)
+
+
+@router.get("/export/conversations")
+async def export_conversations(
+    workspace_id: UUID,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    format: str = Query("json", regex="^(json|csv)$"),
+    current_user: User = Depends(deps.get_current_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+):
+    """Export conversations data as JSON or CSV."""
+    data = await service.export_conversations(workspace_id, start_date, end_date)
+
+    if format == "csv":
+        import csv
+        import io
+        from fastapi.responses import StreamingResponse
+
+        output = io.StringIO()
+        if data:
+            writer = csv.DictWriter(output, fieldnames=data[0].keys())
+            writer.writeheader()
+            writer.writerows(data)
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=conversations_export.csv"},
+        )
+
+    return data
+
+
+@router.get("/export/messages")
+async def export_messages(
+    workspace_id: UUID,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    format: str = Query("json", regex="^(json|csv)$"),
+    current_user: User = Depends(deps.get_current_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+):
+    """Export messages data as JSON or CSV."""
+    data = await service.export_messages(workspace_id, start_date, end_date)
+
+    if format == "csv":
+        import csv
+        import io
+        from fastapi.responses import StreamingResponse
+
+        output = io.StringIO()
+        if data:
+            writer = csv.DictWriter(output, fieldnames=data[0].keys())
+            writer.writeheader()
+            writer.writerows(data)
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=messages_export.csv"},
+        )
+
+    return data
+
+
+@router.get("/export/knowledge-gaps")
+async def export_knowledge_gaps(
+    workspace_id: UUID,
+    format: str = Query("json", regex="^(json|csv)$"),
+    current_user: User = Depends(deps.get_current_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+):
+    """Export unanswered questions as JSON or CSV."""
+    data = await service.get_unanswered_questions(workspace_id)
+
+    if format == "csv":
+        import csv
+        import io
+        from fastapi.responses import StreamingResponse
+
+        output = io.StringIO()
+        if data:
+            writer = csv.DictWriter(output, fieldnames=data[0].keys())
+            writer.writeheader()
+            writer.writerows(data)
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=knowledge_gaps_export.csv"},
+        )
+
+    return data
+

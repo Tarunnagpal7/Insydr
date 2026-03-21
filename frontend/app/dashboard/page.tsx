@@ -13,14 +13,21 @@ import {
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
 
+import { useRouter } from 'next/navigation';
+
 export default function DashboardPage() {
+  const router = useRouter();
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
   const { workspaces, isLoading } = useAppSelector((state) => state.workspace);
 
   useEffect(() => {
+    if (user?.email === 'admin@gmail.com') {
+      router.push('/admin');
+      return;
+    }
     dispatch(fetchWorkspaces());
-  }, [dispatch]);
+  }, [dispatch, user, router]);
 
   // Calculate global stats
   const totalAgents = workspaces.reduce((sum, w) => sum + (w.stats?.total_agents || 0), 0);

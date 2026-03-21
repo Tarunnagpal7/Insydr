@@ -28,3 +28,24 @@ class LLMService:
         except Exception as e:
             print(f"Error generating content with Gemini: {e}")
             raise e
+
+    async def generate_stream(self, prompt: str, temperature: float = 0.5):
+        """
+        Stream content from Gemini token-by-token.
+        Yields text chunks as they arrive.
+        """
+        try:
+            generation_config = genai.types.GenerationConfig(
+                temperature=temperature,
+            )
+            response = await self.model.generate_content_async(
+                prompt,
+                generation_config=generation_config,
+                stream=True,
+            )
+            async for chunk in response:
+                if chunk.text:
+                    yield chunk.text
+        except Exception as e:
+            print(f"Error streaming content with Gemini: {e}")
+            raise e

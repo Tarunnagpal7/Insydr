@@ -1,12 +1,15 @@
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
 from uuid import UUID
-from sqlalchemy import select, func, and_, extract, case
+from sqlalchemy import select, func, and_, extract, case, distinct, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.conversation import Conversation
 from app.db.models.message import Message
 from app.db.models.agent import Agent
 from app.db.models.usage_metric import UsageMetric
+from app.db.models.analytics_event import AnalyticsEvent
+from app.db.models.document import Document
+from app.db.models.document_chunk import DocumentChunk
 
 
 class AnalyticsService:
@@ -510,3 +513,497 @@ class AnalyticsService:
         except Exception as e:
             print(f"Failed to analyze knowledge gaps: {e}")
             return "Analysis failed due to an error connecting to the AI service."
+
+    # ═══════════════════════════════════════════
+    # NEW: Feedback Analytics
+    # ═══════════════════════════════════════════
+
+    async def get_feedback_stats(
+        self,
+        workspace_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """Get thumbs up/down ratio and satisfaction score."""
+        if not end_date:
+            end_date = date.today()
+        if not start_date:
+            start_date = end_date - timedelta(days=30)
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
+
+        base_filters = [
+            AnalyticsEvent.workspace_id == workspace_id,
+            AnalyticsEvent.created_at >= start_dt,
+            AnalyticsEvent.created_at <= end_dt,
+        ]
+
+        up_query = select(func.count(AnalyticsEvent.id)).where(
+            and_(*base_filters, AnalyticsEvent.event_type == "feedback_thumbs_up")
+        )
+        down_query = select(func.count(AnalyticsEvent.id)).where(
+            and_(*base_filters, AnalyticsEvent.event_type == "feedback_thumbs_down")
+        )
+
+        up_result = await self.session.execute(up_query)
+        down_result = await self.session.execute(down_query)
+        thumbs_up = up_result.scalar() or 0
+        thumbs_down = down_result.scalar() or 0
+        total_feedback = thumbs_up + thumbs_down
+        satisfaction = round((thumbs_up / total_feedback) * 100, 1) if total_feedback > 0 else 0
+
+        return {
+            "thumbs_up": thumbs_up,
+            "thumbs_down": thumbs_down,
+            "total_feedback": total_feedback,
+            "satisfaction_score": satisfaction,
+        }
+
+    async def get_feedback_over_time(
+        self,
+        workspace_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get feedback trends over time."""
+        if not end_date:
+            end_date = date.today()
+        if not start_date:
+            start_date = end_date - timedelta(days=30)
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
+
+        date_col = func.date(AnalyticsEvent.created_at)
+        query = (
+            select(
+                date_col.label("period"),
+                func.sum(case((AnalyticsEvent.event_type == "feedback_thumbs_up", 1), else_=0)).label("thumbs_up"),
+                func.sum(case((AnalyticsEvent.event_type == "feedback_thumbs_down", 1), else_=0)).label("thumbs_down"),
+            )
+            .where(
+                and_(
+                    AnalyticsEvent.workspace_id == workspace_id,
+                    AnalyticsEvent.created_at >= start_dt,
+                    AnalyticsEvent.created_at <= end_dt,
+                    AnalyticsEvent.event_type.in_(["feedback_thumbs_up", "feedback_thumbs_down"]),
+                )
+            )
+            .group_by(date_col)
+            .order_by(date_col)
+        )
+        result = await self.session.execute(query)
+        rows = result.fetchall()
+        return [
+            {
+                "date": row.period.isoformat() if hasattr(row.period, "isoformat") else str(row.period),
+                "thumbs_up": row.thumbs_up or 0,
+                "thumbs_down": row.thumbs_down or 0,
+            }
+            for row in rows
+        ]
+
+    # ═══════════════════════════════════════════
+    # NEW: Conversation Insights
+    # ═══════════════════════════════════════════
+
+    async def get_conversation_insights(
+        self,
+        workspace_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """Get avg duration, avg messages/conversation, abandonment rate."""
+        if not end_date:
+            end_date = date.today()
+        if not start_date:
+            start_date = end_date - timedelta(days=30)
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
+
+        conv_filters = [
+            Conversation.workspace_id == workspace_id,
+            Conversation.created_at >= start_dt,
+            Conversation.created_at <= end_dt,
+        ]
+
+        # Total conversations
+        total_q = select(func.count(Conversation.id)).where(and_(*conv_filters))
+        total_r = await self.session.execute(total_q)
+        total_conversations = total_r.scalar() or 0
+
+        # Messages per conversation
+        msg_per_conv_q = (
+            select(
+                Message.conversation_id,
+                func.count(Message.id).label("msg_count"),
+            )
+            .join(Conversation, Message.conversation_id == Conversation.id)
+            .where(
+                and_(
+                    Message.workspace_id == workspace_id,
+                    Conversation.created_at >= start_dt,
+                    Conversation.created_at <= end_dt,
+                )
+            )
+            .group_by(Message.conversation_id)
+        )
+        msg_per_conv_r = await self.session.execute(msg_per_conv_q)
+        msg_counts = [row.msg_count for row in msg_per_conv_r.fetchall()]
+        avg_msgs = round(sum(msg_counts) / len(msg_counts), 1) if msg_counts else 0
+
+        # Abandoned conversations (only 1 message = user didn't continue)
+        abandoned = sum(1 for c in msg_counts if c <= 1)
+        abandonment_rate = round((abandoned / len(msg_counts)) * 100, 1) if msg_counts else 0
+
+        # Avg conversation duration (first msg to last msg)
+        duration_q = (
+            select(
+                Message.conversation_id,
+                func.min(Message.created_at).label("first_msg"),
+                func.max(Message.created_at).label("last_msg"),
+            )
+            .join(Conversation, Message.conversation_id == Conversation.id)
+            .where(
+                and_(
+                    Message.workspace_id == workspace_id,
+                    Conversation.created_at >= start_dt,
+                    Conversation.created_at <= end_dt,
+                )
+            )
+            .group_by(Message.conversation_id)
+            .having(func.count(Message.id) > 1)
+        )
+        duration_r = await self.session.execute(duration_q)
+        durations = []
+        for row in duration_r.fetchall():
+            diff = (row.last_msg - row.first_msg).total_seconds()
+            durations.append(diff)
+        avg_duration_seconds = round(sum(durations) / len(durations), 1) if durations else 0
+
+        # Time to first response (avg time between user msg and bot msg)
+        first_response_q = select(func.avg(Message.response_time_ms)).where(
+            and_(
+                Message.workspace_id == workspace_id,
+                Message.role == "assistant",
+                Message.response_time_ms.isnot(None),
+                Message.created_at >= start_dt,
+                Message.created_at <= end_dt,
+            )
+        )
+        first_response_r = await self.session.execute(first_response_q)
+        avg_first_response_ms = first_response_r.scalar() or 0
+
+        return {
+            "total_conversations": total_conversations,
+            "avg_messages_per_conversation": avg_msgs,
+            "abandonment_rate": abandonment_rate,
+            "avg_duration_seconds": avg_duration_seconds,
+            "avg_first_response_ms": round(avg_first_response_ms, 1) if avg_first_response_ms else 0,
+        }
+
+    # ═══════════════════════════════════════════
+    # NEW: Day-of-Week Distribution
+    # ═══════════════════════════════════════════
+
+    async def get_day_of_week_distribution(
+        self,
+        workspace_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get conversation distribution by day of week (0=Sunday)."""
+        if not end_date:
+            end_date = date.today()
+        if not start_date:
+            start_date = end_date - timedelta(days=30)
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
+
+        query = (
+            select(
+                extract("dow", Conversation.created_at).label("day_of_week"),
+                func.count(Conversation.id).label("count"),
+            )
+            .where(
+                and_(
+                    Conversation.workspace_id == workspace_id,
+                    Conversation.created_at >= start_dt,
+                    Conversation.created_at <= end_dt,
+                )
+            )
+            .group_by(extract("dow", Conversation.created_at))
+            .order_by(extract("dow", Conversation.created_at))
+        )
+        result = await self.session.execute(query)
+        rows = result.fetchall()
+
+        day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        day_data = {int(row.day_of_week): row.count for row in rows}
+
+        return [
+            {"day": day_names[i], "day_index": i, "conversations": day_data.get(i, 0)}
+            for i in range(7)
+        ]
+
+    # ═══════════════════════════════════════════
+    # NEW: Top Asked Questions
+    # ═══════════════════════════════════════════
+
+    async def get_top_questions(
+        self,
+        workspace_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Get most frequently asked user messages."""
+        if not end_date:
+            end_date = date.today()
+        if not start_date:
+            start_date = end_date - timedelta(days=30)
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
+
+        # Group similar questions by exact text
+        query = (
+            select(
+                Message.content,
+                func.count(Message.id).label("frequency"),
+                func.max(Message.created_at).label("last_asked"),
+            )
+            .where(
+                and_(
+                    Message.workspace_id == workspace_id,
+                    Message.role == "user",
+                    Message.created_at >= start_dt,
+                    Message.created_at <= end_dt,
+                    func.length(Message.content) > 5,  # Skip very short messages
+                )
+            )
+            .group_by(Message.content)
+            .order_by(func.count(Message.id).desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(query)
+        rows = result.fetchall()
+
+        return [
+            {
+                "question": row.content[:200],  # Truncate long messages
+                "frequency": row.frequency,
+                "last_asked": row.last_asked.isoformat(),
+            }
+            for row in rows
+        ]
+
+    # ═══════════════════════════════════════════
+    # NEW: User Behavior Insights
+    # ═══════════════════════════════════════════
+
+    async def get_user_behavior(
+        self,
+        workspace_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """Get new vs returning visitors, engagement metrics."""
+        if not end_date:
+            end_date = date.today()
+        if not start_date:
+            start_date = end_date - timedelta(days=30)
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
+
+        conv_filters = [
+            Conversation.workspace_id == workspace_id,
+            Conversation.created_at >= start_dt,
+            Conversation.created_at <= end_dt,
+        ]
+
+        # Count unique IPs in this period
+        total_visitors_q = select(func.count(distinct(Conversation.user_ip))).where(
+            and_(*conv_filters, Conversation.user_ip.isnot(None))
+        )
+        total_visitors_r = await self.session.execute(total_visitors_q)
+        total_unique_visitors = total_visitors_r.scalar() or 0
+
+        # IPs that appeared before the start_date (returning)
+        returning_q = (
+            select(func.count(distinct(Conversation.user_ip)))
+            .where(
+                and_(
+                    *conv_filters,
+                    Conversation.user_ip.isnot(None),
+                    Conversation.user_ip.in_(
+                        select(distinct(Conversation.user_ip)).where(
+                            and_(
+                                Conversation.workspace_id == workspace_id,
+                                Conversation.created_at < start_dt,
+                                Conversation.user_ip.isnot(None),
+                            )
+                        )
+                    ),
+                )
+            )
+        )
+        returning_r = await self.session.execute(returning_q)
+        returning_visitors = returning_r.scalar() or 0
+        new_visitors = max(0, total_unique_visitors - returning_visitors)
+
+        # Total conversations
+        total_conv_q = select(func.count(Conversation.id)).where(and_(*conv_filters))
+        total_conv_r = await self.session.execute(total_conv_q)
+        total_conversations = total_conv_r.scalar() or 0
+
+        # Conversations per visitor
+        convs_per_visitor = round(total_conversations / total_unique_visitors, 1) if total_unique_visitors > 0 else 0
+
+        return {
+            "total_unique_visitors": total_unique_visitors,
+            "new_visitors": new_visitors,
+            "returning_visitors": returning_visitors,
+            "new_visitor_ratio": round((new_visitors / total_unique_visitors) * 100, 1) if total_unique_visitors > 0 else 0,
+            "conversations_per_visitor": convs_per_visitor,
+            "total_conversations": total_conversations,
+        }
+
+    # ═══════════════════════════════════════════
+    # NEW: Source & Knowledge Analytics
+    # ═══════════════════════════════════════════
+
+    async def get_knowledge_base_stats(
+        self,
+        workspace_id: UUID,
+    ) -> Dict[str, Any]:
+        """Get knowledge base overview stats."""
+        # Total documents
+        doc_q = select(func.count(Document.id)).where(Document.workspace_id == workspace_id)
+        doc_r = await self.session.execute(doc_q)
+        total_docs = doc_r.scalar() or 0
+
+        # Total chunks
+        chunk_q = select(func.count(DocumentChunk.id)).where(DocumentChunk.workspace_id == workspace_id)
+        chunk_r = await self.session.execute(chunk_q)
+        total_chunks = chunk_r.scalar() or 0
+
+        # Documents by source type
+        type_q = (
+            select(Document.source_type, func.count(Document.id).label("count"))
+            .where(Document.workspace_id == workspace_id)
+            .group_by(Document.source_type)
+        )
+        type_r = await self.session.execute(type_q)
+        by_type = {row.source_type: row.count for row in type_r.fetchall()}
+
+        # Documents by status
+        status_q = (
+            select(Document.status, func.count(Document.id).label("count"))
+            .where(Document.workspace_id == workspace_id)
+            .group_by(Document.status)
+        )
+        status_r = await self.session.execute(status_q)
+        by_status = {row.status: row.count for row in status_r.fetchall()}
+
+        return {
+            "total_documents": total_docs,
+            "total_chunks": total_chunks,
+            "documents_by_type": by_type,
+            "documents_by_status": by_status,
+        }
+
+    # ═══════════════════════════════════════════
+    # NEW: CSV Export
+    # ═══════════════════════════════════════════
+
+    async def export_conversations(
+        self,
+        workspace_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> List[Dict[str, Any]]:
+        """Export conversations data as list of dicts for CSV."""
+        if not end_date:
+            end_date = date.today()
+        if not start_date:
+            start_date = end_date - timedelta(days=30)
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
+
+        query = (
+            select(Conversation)
+            .where(
+                and_(
+                    Conversation.workspace_id == workspace_id,
+                    Conversation.created_at >= start_dt,
+                    Conversation.created_at <= end_dt,
+                )
+            )
+            .order_by(Conversation.created_at.desc())
+        )
+        result = await self.session.execute(query)
+        conversations = result.scalars().all()
+
+        rows = []
+        for c in conversations:
+            # Count messages for this conversation
+            msg_q = select(func.count(Message.id)).where(Message.conversation_id == c.id)
+            msg_r = await self.session.execute(msg_q)
+            msg_count = msg_r.scalar() or 0
+
+            rows.append({
+                "conversation_id": str(c.id),
+                "agent_id": str(c.agent_id),
+                "page_url": c.referrer_url or "",
+                "page_title": c.page_title or "",
+                "hostname": c.hostname or "",
+                "language": c.language or "",
+                "status": c.status,
+                "message_count": msg_count,
+                "started_at": c.started_at.isoformat() if c.started_at else "",
+                "created_at": c.created_at.isoformat(),
+            })
+        return rows
+
+    async def export_messages(
+        self,
+        workspace_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> List[Dict[str, Any]]:
+        """Export messages data as list of dicts for CSV."""
+        if not end_date:
+            end_date = date.today()
+        if not start_date:
+            start_date = end_date - timedelta(days=30)
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
+
+        query = (
+            select(Message)
+            .where(
+                and_(
+                    Message.workspace_id == workspace_id,
+                    Message.created_at >= start_dt,
+                    Message.created_at <= end_dt,
+                )
+            )
+            .order_by(Message.created_at.desc())
+            .limit(5000)
+        )
+        result = await self.session.execute(query)
+        messages = result.scalars().all()
+
+        return [
+            {
+                "message_id": str(m.id),
+                "conversation_id": str(m.conversation_id),
+                "role": m.role,
+                "content": m.content[:500],
+                "confidence_score": m.confidence_score or "",
+                "response_time_ms": m.response_time_ms or "",
+                "token_count": m.token_count or "",
+                "created_at": m.created_at.isoformat(),
+            }
+            for m in messages
+        ]
+
