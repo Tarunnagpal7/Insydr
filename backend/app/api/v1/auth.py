@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.api.deps import get_auth_service, get_current_user
 from app.services.auth_service import AuthService
 from app.api.schemas.auth import (
@@ -179,11 +180,17 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/logout", response_model=MessageResponse)
-async def logout(current_user: User = Depends(get_current_user)):
+async def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
+    current_user: User = Depends(get_current_user),
+):
     """
     Logout the current user.
-    Client should discard the JWT token.
+    V7 FIX: Blacklist the JWT so it cannot be reused.
     """
+    from app.security.auth import blacklist_token
+    token = credentials.credentials
+    await blacklist_token(token)
     return MessageResponse(
-        message="Logged out successfully. Please discard your access token."
+        message="Logged out successfully. Your session has been revoked."
     )

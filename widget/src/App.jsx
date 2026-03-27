@@ -53,6 +53,67 @@ function TypingIndicator() {
   );
 }
 
+// ─── Lead Collection Form ───
+function LeadForm({ agentId, sessionId, apiBase, primaryColor }) {
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    
+    const formData = new FormData(e.target);
+    const data = {
+      agent_id: agentId,
+      session_id: sessionId,
+      visitor_name: formData.get('name'),
+      visitor_email: formData.get('email'),
+      visitor_phone: formData.get('phone'),
+      visitor_message: formData.get('message')
+    };
+    
+    try {
+      const res = await fetch(`${apiBase}/widget/send-lead-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        setSubmitted(true);
+      } else {
+        setError('Failed to send details. Please try again.');
+      }
+    } catch (err) {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div className="insydr-lead-success" style={{ color: primaryColor || '#10b981', marginTop: 12, padding: '8px 12px', background: '#ecfdf5', borderRadius: 6, fontSize: 13, fontWeight: 500 }}>
+        ✓ Thanks! We've received your details and will be in touch soon.
+      </div>
+    );
+  }
+
+  return (
+    <form className="insydr-lead-form" onSubmit={handleSubmit} style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10, background: '#fff', padding: 16, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+      <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: '#111' }}>Please provide your details:</p>
+      {error && <p style={{ color: '#ef4444', fontSize: 13, margin: 0 }}>{error}</p>}
+      <input type="text" name="name" placeholder="Name" required className="insydr-input" style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '1px solid #e5e7eb', borderRadius: 6, color: '#111' }} />
+      <input type="email" name="email" placeholder="Email" required className="insydr-input" style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '1px solid #e5e7eb', borderRadius: 6, color: '#111' }} />
+      <input type="tel" name="phone" placeholder="Phone (optional)" className="insydr-input" style={{ width: '100%', padding: '8px 12px', fontSize: 14, border: '1px solid #e5e7eb', borderRadius: 6, color: '#111' }} />
+      <button type="submit" disabled={loading} className="insydr-send-btn" style={{ backgroundColor: primaryColor || '#3b82f6', color: 'white', padding: '10px 16px', width: '100%', border: 'none', borderRadius: 6, marginTop: 4, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>
+        {loading ? 'Sending...' : 'Submit Contact Details'}
+      </button>
+    </form>
+  );
+}
+
 // ─── Message Component ───
 function ChatMessage({ msg, config, agentId, sessionId, apiBase, onFeedback }) {
   const [feedback, setFeedback] = useState(null);
@@ -84,6 +145,13 @@ function ChatMessage({ msg, config, agentId, sessionId, apiBase, onFeedback }) {
   const isBot = msg.role === 'assistant';
   const isUser = msg.role === 'user';
 
+  // Check for the trigger token
+  let displayContent = msg.content || '';
+  const hasLeadForm = isBot && displayContent.includes('[LEAD_FORM]');
+  if (hasLeadForm) {
+    displayContent = displayContent.replace('[LEAD_FORM]', '').trim();
+  }
+
   return (
     <div className={`insydr-msg ${isUser ? 'insydr-msg-user' : 'insydr-msg-bot'}`}>
       {isBot && config?.avatarUrl && (
@@ -96,10 +164,13 @@ function ChatMessage({ msg, config, agentId, sessionId, apiBase, onFeedback }) {
         >
           {isBot ? (
             <div className="insydr-markdown">
-              <ReactMarkdown>{msg.content}</ReactMarkdown>
+              <ReactMarkdown>{displayContent}</ReactMarkdown>
+              {hasLeadForm && !msg.streaming && (
+                <LeadForm agentId={agentId} sessionId={sessionId} apiBase={apiBase} primaryColor={config?.primaryColor} />
+              )}
             </div>
           ) : (
-            <span>{msg.content}</span>
+            <span>{displayContent}</span>
           )}
         </div>
 

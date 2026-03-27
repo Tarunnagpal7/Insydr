@@ -390,7 +390,129 @@ async def verify_cta_email_otp(
     return {"message": "Email verified successfully", "email": request.email, "verified": True}
 
 
+# ============ CONVERSATIONS (Chat History + Leads) ============
 
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.models.conversation import Conversation
+from app.db.models.message import Message
+from app.db.models.analytics_event import AnalyticsEvent
+
+
+def _compute_lead_score(messages_list, conversation) -> int:
+    """
+    Compute a heuristic lead score (0–100) based on:
+    - Number of user messages (engagement)
+    - Avg length of user messages (intent depth)
+    - Conversation duration
+    """
+    user_msgs = [m for m in messages_list if m.role == "user"]
+    if not user_msgs:
+        return 0
+
+    score = 0
+
+    # 1. Message volume (max 40 pts)
+    msg_count = len(user_msgs)
+    score += min(msg_count * 8, 40)
+
+    # 2. Average message length (max 30 pts) — longer msgs = more intent
+    avg_len = sum(len(m.content) for m in user_msgs) / len(user_msgs)
+    if avg_len > 100:
+        score += 30
+    elif avg_len > 50:
+        score += 20
+    elif avg_len > 20:
+        score += 10
+
+    # 3. Conversation duration (max 20 pts)
+    if conversation.ended_at and conversation.started_at:
+        duration_secs = (conversation.ended_at - conversation.started_at).total_seconds()
+        if duration_secs > 300:
+            score += 20
+        elif duration_secs > 60:
+            score += 10
+
+    # 4. Has lead_email_sent event (bonus 10 pts — they already submitted)
+    # This is checked via a flag we'll pass in
+    return min(score, 100)
+
+
+@router.get("/{agent_id}/conversations")
+async def list_agent_conversations(
+    agent_id: UUID,
+    current_user: User = Depends(deps.get_current_user),
+    service: AgentService = Depends(deps.get_agent_service),
+    db: AsyncSession = Depends(deps.get_db),
+):
+    """
+    List all conversations for a specific agent, with messages and lead score.
+    Ordered by most recent first.
+    """
+    agent = await service.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    # Get all conversations for this agent
+    conv_stmt = (
+        select(Conversation)
+        .where(Conversation.agent_id == agent_id)
+        .order_by(Conversation.started_at.desc())
+        .limit(100)
+    )
+    conv_result = await db.execute(conv_stmt)
+    conversations = conv_result.scalars().all()
+
+    # Get lead_email_sent events for this agent
+    lead_stmt = select(AnalyticsEvent.conversation_id).where(
+        AnalyticsEvent.agent_id == agent_id,
+        AnalyticsEvent.event_type == "lead_email_sent",
+    )
+    lead_result = await db.execute(lead_stmt)
+    lead_conv_ids = {row[0] for row in lead_result.all()}
+
+    results = []
+    for conv in conversations:
+        # Get messages for this conversation
+        msg_stmt = (
+            select(Message)
+            .where(Message.conversation_id == conv.id)
+            .order_by(Message.created_at)
+        )
+        msg_result = await db.execute(msg_stmt)
+        msgs = msg_result.scalars().all()
+
+        lead_score = _compute_lead_score(msgs, conv)
+        # Bonus if lead email was already sent
+        if conv.id in lead_conv_ids:
+            lead_score = min(lead_score + 10, 100)
+
+        results.append({
+            "id": str(conv.id),
+            "session_id": conv.session_id,
+            "status": conv.status,
+            "started_at": conv.started_at.isoformat() if conv.started_at else None,
+            "ended_at": conv.ended_at.isoformat() if conv.ended_at else None,
+            "referrer_url": conv.referrer_url,
+            "page_title": conv.page_title,
+            "hostname": conv.hostname,
+            "user_ip": conv.user_ip,
+            "lead_score": lead_score,
+            "lead_email_sent": conv.id in lead_conv_ids,
+            "message_count": len(msgs),
+            "messages": [
+                {
+                    "id": str(m.id),
+                    "role": m.role,
+                    "content": m.content,
+                    "created_at": m.created_at.isoformat() if m.created_at else None,
+                    "confidence_score": m.confidence_score,
+                }
+                for m in msgs
+            ],
+        })
+
+    return results
 
 @router.post("/{agent_id}/chat", response_model=ChatResponse)
 async def chat_agent(

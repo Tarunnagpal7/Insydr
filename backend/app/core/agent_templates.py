@@ -393,9 +393,11 @@ def _build_guardrails_prompt(rules: Dict[str, Any]) -> str:
     cta_email = rules.get("cta_email")
     if cta_email:
         sections.append(
-            f"- If the visitor shows strong interest, expresses a need, or asks about pricing/demos, "
-            f"encourage them to share their email so the team can follow up, or mention they can click "
-            f"the 'Send Email' button to get in touch."
+            f"- If the visitor shows strong interest, expresses a need, asks about pricing/demos, "
+            f"or seems ready to conclude the conversation after chatting, encourage them to share their contact info "
+            f"so the team can follow up.\n"
+            f"- When you do this, you MUST append the exact text `[LEAD_FORM]` at the very end of your message. "
+            f"This token will trigger the email collection form on the frontend."
         )
 
     if not sections:

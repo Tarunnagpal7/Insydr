@@ -1,14 +1,14 @@
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from app.core.config import settings
 
 class LLMService:
     def __init__(self):
-        api_key = settings.GOOGLE_API_KEY
-        if not api_key:
+        self.api_key = settings.GOOGLE_API_KEY
+        if not self.api_key:
             raise ValueError("GOOGLE_API_KEY is not set")
             
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.client = genai.Client(api_key=self.api_key)
 
     async def generate(self, prompt: str, temperature: float = 0.5) -> str:
         """
@@ -17,12 +17,13 @@ class LLMService:
         temperature: 0.0 = deterministic/consistent, 1.0 = creative/varied
         """
         try:
-            generation_config = genai.types.GenerationConfig(
+            generation_config = types.GenerateContentConfig(
                 temperature=temperature,
             )
-            response = await self.model.generate_content_async(
-                prompt,
-                generation_config=generation_config,
+            response = await self.client.aio.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config=generation_config,
             )
             return response.text
         except Exception as e:
@@ -35,15 +36,15 @@ class LLMService:
         Yields text chunks as they arrive.
         """
         try:
-            generation_config = genai.types.GenerationConfig(
+            generation_config = types.GenerateContentConfig(
                 temperature=temperature,
             )
-            response = await self.model.generate_content_async(
-                prompt,
-                generation_config=generation_config,
-                stream=True,
+            response_stream = await self.client.aio.models.generate_content_stream(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config=generation_config,
             )
-            async for chunk in response:
+            async for chunk in response_stream:
                 if chunk.text:
                     yield chunk.text
         except Exception as e:

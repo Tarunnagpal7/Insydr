@@ -18,6 +18,10 @@ from app.api.schemas.knowledge import (
     TestQueryRequest, TestQueryResponse, ChunkResult,
 )
 from app.rag.ingest import SUPPORTED_EXTENSIONS
+from app.services.plan_limits import (
+    check_document_limit, check_storage_limit,
+    check_web_page_limit, PlanLimitExceeded,
+)
 import datetime
 
 router = APIRouter()
@@ -99,6 +103,16 @@ async def upload_document(
 
     try:
         print(f"[DEBUG] Starting ingestion for workspace {workspace_id}")
+        
+        # ── Plan limit: check document and storage limits ──
+        try:
+            await check_document_limit(service.repo.session, workspace_id)
+            await check_storage_limit(service.repo.session, workspace_id, file_size)
+        except PlanLimitExceeded as e:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            raise HTTPException(status_code=403, detail=e.message)
+        
         document = await service.ingest_file(workspace_id, collection_id, tmp_path, process_embeddings=process, original_filename=file.filename)
         print(f"[DEBUG] Ingestion successful. Document ID: {document.id}")
         return document
@@ -128,6 +142,12 @@ async def ingest_text(
         raise HTTPException(status_code=400, detail="Content must be at least 10 characters long.")
     
     try:
+        # ── Plan limit: check document limit ──
+        try:
+            await check_document_limit(service.repo.session, request.workspace_id)
+        except PlanLimitExceeded as e:
+            raise HTTPException(status_code=403, detail=e.message)
+        
         document = await service.ingest_text(
             workspace_id=request.workspace_id,
             collection_id=request.collection_id,
@@ -197,6 +217,14 @@ async def crawl_website(
     # Clamp limits
     max_depth = min(max(1, request.max_depth), 5)
     max_pages = min(max(1, request.max_pages), 100)
+    
+    # ── Plan limit: check web page crawl limit ──
+    try:
+        remaining = await check_web_page_limit(service.repo.session, request.workspace_id, max_pages)
+        if remaining != -1:
+            max_pages = min(max_pages, remaining)  # Cap to remaining allowance
+    except PlanLimitExceeded as e:
+        raise HTTPException(status_code=403, detail=e.message)
     
     # Auto-create collection to group crawled pages
     from urllib.parse import urlparse

@@ -40,6 +40,13 @@ class WorkspaceService:
         if not name or not name.strip():
             raise ValueError("Workspace name is required")
 
+        # ── Plan limit: check workspace creation quota ──
+        from app.services.plan_limits import check_workspace_limit, PlanLimitExceeded
+        try:
+            await check_workspace_limit(self.workspace_repo.session, user_id)
+        except PlanLimitExceeded as e:
+            raise ValueError(e.message)
+
         workspace = Workspace(
             owner_id=user_id,
             name=name.strip(),

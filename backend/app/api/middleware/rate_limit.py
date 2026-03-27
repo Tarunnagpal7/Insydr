@@ -30,8 +30,8 @@ class RateLimitDependency:
             identifier = await get_client_ip(request)
             key = f"rl:widget:{identifier}"
         elif self.scope == "api":
-            # API Key based (extract from header or query)
-            api_key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
+            # V11 FIX: API Key only from header (never from query params — URLs are logged)
+            api_key = request.headers.get("X-API-Key")
             identifier = api_key if api_key else await get_client_ip(request)
             key = f"rl:api:{identifier}"
         else:

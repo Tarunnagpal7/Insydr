@@ -20,6 +20,11 @@ class Workspace(UUIDBase, Base):
     subscription_tier: Mapped[str] = mapped_column(default="FREE")
     settings: Mapped[dict | None] = mapped_column(JSON)
 
+    # Stripe billing fields
+    stripe_customer_id: Mapped[str | None]
+    stripe_subscription_id: Mapped[str | None]
+    current_period_end: Mapped[datetime | None]
+
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 

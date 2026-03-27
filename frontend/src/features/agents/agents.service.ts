@@ -153,3 +153,33 @@ export const verifyCtaEmailOtp = async (agentId: string, email: string, otp: str
   return response.data;
 };
 
+// ─── Agent Conversations (Chat History + Leads) ───
+
+export interface ConversationMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+  confidence_score?: number;
+}
+
+export interface AgentConversation {
+  id: string;
+  session_id: string;
+  status: string;
+  started_at: string | null;
+  ended_at: string | null;
+  referrer_url: string | null;
+  page_title: string | null;
+  hostname: string | null;
+  user_ip: string | null;
+  lead_score: number;
+  lead_email_sent: boolean;
+  message_count: number;
+  messages: ConversationMessage[];
+}
+
+export const getAgentConversations = async (agentId: string): Promise<AgentConversation[]> => {
+  const response = await apiClient.get<AgentConversation[]>(`/agents/${agentId}/conversations`);
+  return response.data;
+};

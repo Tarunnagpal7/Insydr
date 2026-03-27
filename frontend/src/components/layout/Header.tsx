@@ -14,6 +14,7 @@ import {
   UserCircleIcon,
   Squares2X2Icon,
   HomeIcon,
+  CreditCardIcon,
 } from '@heroicons/react/24/outline';
 
 interface HeaderProps {
@@ -128,6 +129,19 @@ export default function Header({ showNav = true, className = '', children }: Hea
                       >
                         <Cog6ToothIcon className="h-5 w-5" />
                         Settings
+                      </Link>
+                    )}
+                  </Menu.Item>
+                  <Menu.Item>
+                    {({ active }) => (
+                      <Link
+                        href="/pricing"
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm ${
+                          active ? 'bg-white/5 text-white' : 'text-gray-300'
+                        }`}
+                      >
+                        <CreditCardIcon className="h-5 w-5" />
+                        Billing
                       </Link>
                     )}
                   </Menu.Item>

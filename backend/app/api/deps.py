@@ -92,6 +92,15 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"}
         )
 
+    # V7 FIX: Check if token has been blacklisted (e.g. after logout)
+    from app.security.auth import is_token_blacklisted
+    if await is_token_blacklisted(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(
@@ -108,11 +117,12 @@ async def get_current_user(
             detail="User not found"
         )
 
-    # if not user.email_verified:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Email not verified"
-    #     )
+    # V3 FIX: Re-enable email verification enforcement
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified. Please verify your email before accessing this resource."
+        )
 
     return user
 

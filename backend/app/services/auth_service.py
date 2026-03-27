@@ -16,6 +16,28 @@ from app.core.config import settings
 
 from app.services.email_service import EmailService
 
+import re
+
+# V8: Password strength requirements
+MIN_PASSWORD_LENGTH = 8
+PASSWORD_PATTERN = re.compile(
+    r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$'
+)
+
+
+def _validate_password_strength(password: str) -> None:
+    """V8 FIX: Enforce password complexity requirements."""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise ValueError(
+            f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
+        )
+    if not PASSWORD_PATTERN.match(password):
+        raise ValueError(
+            "Password must contain at least one uppercase letter, "
+            "one lowercase letter, and one digit."
+        )
+
+
 class AuthService:
     def __init__(self, user_repo: UserRepository, otp_repo: OTPRepository, email_service: EmailService):
         self.user_repo = user_repo
@@ -30,6 +52,9 @@ class AuthService:
         # Check if email already exists
         if await self.user_repo.email_exists(email):
             raise ValueError("This email is already registered. Please sign in instead.")
+
+        # V8 FIX: Validate password strength before creating user
+        _validate_password_strength(password)
 
         # Create user
         user = User(
@@ -64,8 +89,9 @@ class AuthService:
         if not verify_password(password, user.password_hash):
             raise ValueError("The email or password you entered is incorrect. Please try again.")
 
-        # if not user.email_verified:
-        #     raise ValueError("Your email address hasn't been verified yet. Please check your inbox for the verification link.")
+        # V3 FIX: Re-enable email verification check
+        if not user.email_verified:
+            raise ValueError("Your email address hasn't been verified yet. Please check your inbox for the verification link.")
 
         # Update last login
         user.last_login_at = datetime.utcnow()
@@ -179,12 +205,13 @@ class AuthService:
         )
         await self.otp_repo.create(otp)
 
-        # Console log the OTP (for development)
-        print("\n" + "=" * 50)
-        print(f"📧 OTP for {email}")
-        print(f"📝 Purpose: {purpose}")
-        print(f"🔐 OTP Code: {otp_code}")
-        print(f"⏰ Expires in: {settings.OTP_EXPIRY_MINUTES} minutes")
-        print("=" * 50 + "\n")
+        # V13 FIX: Only log OTP to console in DEBUG mode
+        if settings.DEBUG:
+            print("\n" + "=" * 50)
+            print(f"📧 OTP for {email}")
+            print(f"📝 Purpose: {purpose}")
+            print(f"🔐 OTP Code: {otp_code}")
+            print(f"⏰ Expires in: {settings.OTP_EXPIRY_MINUTES} minutes")
+            print("=" * 50 + "\n")
 
         return otp_code

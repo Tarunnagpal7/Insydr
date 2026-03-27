@@ -26,11 +26,14 @@ from sqlalchemy import select
 
 from app.api import deps
 from app.db.models.agent import Agent
+from app.db.models.api_key import ApiKey
 from app.db.models.conversation import Conversation
 from app.db.models.message import Message
 from app.db.models.analytics_event import AnalyticsEvent
 from app.api.middleware.rate_limit import rate_limit
 from app.rag.graph import RAGGraph
+from app.services.plan_limits import check_message_limit, PlanLimitExceeded
+import html  # V10: for escaping user content in emails
 
 router = APIRouter()
 
@@ -117,6 +120,40 @@ def is_domain_allowed(hostname: str, allowed_domains: list) -> bool:
             return True
     
     return False
+
+
+async def _validate_session_workspace(db: AsyncSession, session_id, agent_id):
+    """
+    V9 FIX: Validate that the conversation session belongs to the correct agent
+    and that the agent's workspace has a valid API key.
+    Prevents session hijacking from unauthorized domains.
+    """
+    stmt = select(Conversation).where(Conversation.id == session_id)
+    result = await db.execute(stmt)
+    conversation = result.scalar_one_or_none()
+    if not conversation:
+        return None, None, "Invalid session."
+
+    stmt = select(Agent).where(Agent.id == agent_id)
+    result = await db.execute(stmt)
+    agent = result.scalar_one_or_none()
+    if not agent:
+        return None, None, "Agent not found"
+
+    # Ensure session belongs to this agent
+    if conversation.agent_id != agent.id:
+        return None, None, "Session does not belong to this agent."
+
+    # Verify workspace has at least one active API key
+    key_stmt = select(ApiKey).where(
+        ApiKey.workspace_id == agent.workspace_id,
+        ApiKey.is_active == True,
+    )
+    key_result = await db.execute(key_stmt)
+    if not key_result.scalar_one_or_none():
+        return None, None, "No active API key found for this workspace."
+
+    return conversation, agent, None
 
 
 def _build_widget_settings(agent) -> dict:
@@ -277,17 +314,16 @@ async def widget_chat(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID format")
     
-    stmt = select(Conversation).where(Conversation.id == session_id)
-    result = await db.execute(stmt)
-    conversation = result.scalar_one_or_none()
-    if not conversation:
-        raise HTTPException(status_code=400, detail="Invalid session.")
+    # V9 FIX: Re-validate session and API key on every chat request
+    conversation, agent, error = await _validate_session_workspace(db, session_id, agent_id)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
     
-    stmt = select(Agent).where(Agent.id == agent_id)
-    result = await db.execute(stmt)
-    agent = result.scalar_one_or_none()
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
+    # ── Plan limit: check monthly message quota ──
+    try:
+        await check_message_limit(db, agent.workspace_id)
+    except PlanLimitExceeded as e:
+        raise HTTPException(status_code=403, detail=e.message)
     
     user_message = Message(
         conversation_id=conversation.id,
@@ -416,17 +452,16 @@ async def widget_chat_stream(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID format")
     
-    stmt = select(Conversation).where(Conversation.id == session_id)
-    result = await db.execute(stmt)
-    conversation = result.scalar_one_or_none()
-    if not conversation:
-        raise HTTPException(status_code=400, detail="Invalid session.")
+    # V9 FIX: Re-validate session and API key on every stream request
+    conversation, agent, error = await _validate_session_workspace(db, session_id, agent_id)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
     
-    stmt = select(Agent).where(Agent.id == agent_id)
-    result = await db.execute(stmt)
-    agent = result.scalar_one_or_none()
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
+    # ── Plan limit: check monthly message quota ──
+    try:
+        await check_message_limit(db, agent.workspace_id)
+    except PlanLimitExceeded as e:
+        raise HTTPException(status_code=403, detail=e.message)
     
     user_message = Message(
         conversation_id=conversation.id,
@@ -695,35 +730,43 @@ async def send_lead_email(
     
     conv_html_lines = []
     for msg in messages:
-        role_label = "🧑 Visitor" if msg.role == "user" else f"🤖 {agent.name}"
+        role_label = "🧑 Visitor" if msg.role == "user" else f"🤖 {html.escape(agent.name)}"
         bg_color = "#f0f0f0" if msg.role == "user" else "#e8f4fd"
+        # V10 FIX: HTML-escape all user content to prevent XSS in emails
+        safe_content = html.escape(msg.content)
         conv_html_lines.append(
             f'<div style="background:{bg_color};padding:10px 14px;border-radius:8px;margin-bottom:8px;">'
-            f'<strong>{role_label}:</strong><br/>{msg.content}</div>'
+            f'<strong>{role_label}:</strong><br/>{safe_content}</div>'
         )
     
     conv_html = "\n".join(conv_html_lines) if conv_html_lines else "<p>No conversation history.</p>"
-    
+    # V10 FIX: HTML-escape user-provided fields
+    safe_visitor_name = html.escape(visitor_name)
+    safe_visitor_email = html.escape(request.visitor_email)
+    safe_visitor_phone = html.escape(visitor_phone)
+    safe_page_url = html.escape(str(page_url))
+
     visitor_msg_block = ""
     if visitor_msg:
+        safe_visitor_msg = html.escape(visitor_msg)
         visitor_msg_block = (
             '<div style="margin:16px 0;padding:12px 16px;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:4px;">'
-            f'<strong>Message from visitor:</strong><br/>{visitor_msg}</div>'
+            f'<strong>Message from visitor:</strong><br/>{safe_visitor_msg}</div>'
         )
     
     html_body = f"""
     <div style="font-family:'Segoe UI',Tahoma,sans-serif;max-width:600px;margin:0 auto;color:#333;">
         <div style="background:linear-gradient(135deg,#EF4444,#991B1B);padding:24px 32px;border-radius:12px 12px 0 0;">
-            <h1 style="color:white;margin:0;font-size:22px;">🔥 New Lead from {agent.name}</h1>
+            <h1 style="color:white;margin:0;font-size:22px;">🔥 New Lead from {html.escape(agent.name)}</h1>
             <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px;">A visitor wants to connect</p>
         </div>
         <div style="background:white;padding:24px 32px;border:1px solid #e5e7eb;">
             <h2 style="font-size:16px;color:#111;margin:0 0 16px;">📋 Visitor Information</h2>
             <table style="width:100%;border-collapse:collapse;">
-                <tr><td style="padding:8px 0;color:#6b7280;width:120px;">Name</td><td style="padding:8px 0;font-weight:600;">{visitor_name}</td></tr>
-                <tr><td style="padding:8px 0;color:#6b7280;">Email</td><td style="padding:8px 0;"><a href="mailto:{request.visitor_email}" style="color:#EF4444;">{request.visitor_email}</a></td></tr>
-                <tr><td style="padding:8px 0;color:#6b7280;">Phone</td><td style="padding:8px 0;">{visitor_phone}</td></tr>
-                <tr><td style="padding:8px 0;color:#6b7280;">Page URL</td><td style="padding:8px 0;font-size:13px;">{page_url}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;width:120px;">Name</td><td style="padding:8px 0;font-weight:600;">{safe_visitor_name}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Email</td><td style="padding:8px 0;"><a href="mailto:{safe_visitor_email}" style="color:#EF4444;">{safe_visitor_email}</a></td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Phone</td><td style="padding:8px 0;">{safe_visitor_phone}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Page URL</td><td style="padding:8px 0;font-size:13px;">{safe_page_url}</td></tr>
             </table>
             {visitor_msg_block}
         </div>

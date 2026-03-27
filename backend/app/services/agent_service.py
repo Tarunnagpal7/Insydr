@@ -11,8 +11,11 @@ from app.services import cloudinary_service
 # Plan-based agent limits (matches PricingCards.tsx tiers)
 PLAN_AGENT_LIMITS: Dict[str, int] = {
     "FREE": 1,
-    "PRO": 5,
-    "BUSINESS": -1,  # -1 = unlimited
+    "STARTER": 2,
+    "GROWTH": 5,
+    "PRO": -1,       # unlimited
+    "BUSINESS": -1,   # backward compat
+    "ENTERPRISE": -1,
 }
 
 

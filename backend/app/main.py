@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 import time
 
 from app.core.config import settings
@@ -16,38 +17,66 @@ from app.api.v1.analytics import router as analytics_router
 from app.api.v1.invitations import router as invitations_router
 from app.api.v1.admin import router as admin_router
 from app.api.v1.health import router as health_router
+from app.api.v1.billing import router as billing_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await RedisClient.init()
+    yield
+    # Shutdown
+    await RedisClient.close()
+
 
 app = FastAPI(
     title="Insydr.AI Backend",
     description="AI-powered chatbot platform API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Initialize structured JSON logging
 setup_logging()
 
-@app.on_event("startup")
-async def startup_event():
-    # Initialize Redis connection pool on startup
-    await RedisClient.init()
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    # Close Redis connection pool on shutdown
-    await RedisClient.close()
-
 # Add Tracing/Logging middleware (should be added before CORS so we log CORS options requests too)
 app.add_middleware(StructuredLoggingMiddleware)
 
-# CORS middleware - Allow all origins for widget embeds to work on customer sites
-# In production, you may want to restrict non-widget endpoints
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for widget embedding
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# V4 FIX Part 3: Split CORS Policy
+# The widget is public and embedded on arbitrary domains, so it cannot be blocked by the dashboard's strict CORS.
+# We use a custom ASGI middleware wrapper to route CORS based on the request path.
+_allowed_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+
+class SplitCORSMiddleware:
+    def __init__(self, app, dashboard_origins):
+        self.app = app
+        self.dashboard_cors = CORSMiddleware(
+            app=app,
+            allow_origins=dashboard_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        self.widget_cors = CORSMiddleware(
+            app=app,
+            allow_origins=["*"],
+            allow_credentials=False,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+        
+        # Route to widget permissive CORS or dashboard strict CORS
+        if scope.get("path", "").startswith("/api/v1/widget"):
+            await self.widget_cors(scope, receive, send)
+        else:
+            await self.dashboard_cors(scope, receive, send)
+
+app.add_middleware(SplitCORSMiddleware, dashboard_origins=_allowed_origins)
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
@@ -55,11 +84,12 @@ app.include_router(workspace_router, prefix="/api/v1")
 app.include_router(api_key_router, prefix="/api/v1")
 app.include_router(agents_router, prefix="/api/v1/agents", tags=["Agents"])
 app.include_router(knowledge_router, prefix="/api/v1/knowledge", tags=["Knowledge"])
-app.include_router(widget_router, prefix="/api/v1/widget", tags=["Widget (Public)"])
 app.include_router(analytics_router, prefix="/api/v1/analytics", tags=["Analytics"])
+app.include_router(widget_router, prefix="/api/v1/widget", tags=["Widget (Public)"])
 app.include_router(invitations_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1", tags=["Admin"])
 app.include_router(health_router, prefix="/api/v1/health", tags=["Health"])
+app.include_router(billing_router, prefix="/api/v1/billing", tags=["Billing"])
 
 @app.get("/")
 async def root():

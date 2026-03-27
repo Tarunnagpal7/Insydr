@@ -18,6 +18,9 @@ depends_on = None
 def upgrade():
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
+    # Drop the old JSON-based embeddings table first
+    op.drop_table("embeddings")
+
     op.create_table(
         "embeddings",
         sa.Column("id", sa.UUID(), primary_key=True),

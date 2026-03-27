@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Agent, getAgent, updateAgent, chatWithAgent, deleteAgent, uploadAgentAvatar, deleteAgentAvatar, toggleAgentActive, sendCtaEmailOtp, verifyCtaEmailOtp, ResponseConfig, ConversationRules } from '@/src/features/agents/agents.service';
+import { Agent, getAgent, updateAgent, chatWithAgent, deleteAgent, uploadAgentAvatar, deleteAgentAvatar, toggleAgentActive, sendCtaEmailOtp, verifyCtaEmailOtp, ResponseConfig, ConversationRules, getAgentConversations, AgentConversation } from '@/src/features/agents/agents.service';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Send, Sparkles, Bot, Save, Code, Settings, MessageSquare, Layout, Palette, Zap, Copy, Globe, Shield, CheckCircle, Terminal, ExternalLink, Layers, X, AlertCircle, Camera, Trash2, Power } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, Bot, Save, Code, Settings, MessageSquare, Layout, Palette, Zap, Copy, Globe, Shield, CheckCircle, Terminal, ExternalLink, Layers, X, AlertCircle, Camera, Trash2, Power, Clock, User, Mail, ChevronDown, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Tab } from '@headlessui/react';
 import classNames from 'classnames';
@@ -83,6 +83,11 @@ export default function AgentDetailsPage() {
   const [topicInput, setTopicInput] = useState('');
   const [blockedWordInput, setBlockedWordInput] = useState('');
 
+  // Conversations State
+  const [conversations, setConversations] = useState<AgentConversation[]>([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [selectedConversation, setSelectedConversation] = useState<AgentConversation | null>(null);
+
   // Chat State
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -92,6 +97,7 @@ export default function AgentDetailsPage() {
   useEffect(() => {
     if (agentId) {
       loadAgent();
+      loadConversations();
     }
   }, [agentId]);
 
@@ -118,6 +124,18 @@ export default function AgentDetailsPage() {
       router.push(`/workspace/${workspaceId}/agents`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadConversations = async () => {
+    try {
+      setConversationsLoading(true);
+      const data = await getAgentConversations(agentId);
+      setConversations(data);
+    } catch (error) {
+      toast.error('Failed to load conversations');
+    } finally {
+      setConversationsLoading(false);
     }
   };
 
@@ -400,7 +418,7 @@ export default function AgentDetailsPage() {
   if (!agent) return null;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] -m-6 bg-zinc-950 overflow-x-hidden">
+    <div className="flex flex-col h-[calc(100vh-4rem)] -m-4 bg-zinc-950 overflow-x-hidden">
         <Tab.Group as="div" className="flex flex-col h-full min-h-0">
             {/* Header with Tabs */}
             <div className="sticky -top-2 shrink-0 z-50 bg-zinc-950/95 backdrop-blur-md border-b border-white/5 px-6 pt-6 pb-0">
@@ -463,7 +481,7 @@ export default function AgentDetailsPage() {
                 {/* Tabs */}
                 <div className="border-b border-white/10">
                     <Tab.List className="flex space-x-6">
-                        {['Playground', 'Customization', 'Integration', 'Knowledge', 'Settings'].map((tab) => (
+                        {['Playground', 'Customization', 'Integration', 'Knowledge','Conversations', 'Settings',].map((tab) => (
                             <Tab
                                 key={tab}
                                 className={({ selected }) =>
@@ -485,14 +503,15 @@ export default function AgentDetailsPage() {
             {/* Tab Content - Perfectly contained within the flex column */}
             <div className="flex-1  flex flex-col min-h-0">
                 <Tab.Panels className="flex-1 flex flex-col min-h-0">
-                <Tab.Panel className="flex-1 flex gap-6 p-6 focus:outline-none w-full min-h-0">
+                <Tab.Panel className="flex-1 p-6 focus:outline-none flex flex-col min-h-0">
                         <motion.div 
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                             className="flex-1 flex gap-6 min-h-0 w-full"
                         >
                          {/* Left Info */}
-                         <div className="w-1/3 min-h-0 bg-zinc-900 border border-white/10 rounded-2xl p-6 flex flex-col justify-between gap-10 overflow-y-auto">
-                            <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-4">
+                         <div className="w-2/5 flex flex-col min-h-0">
+                            <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+                             <div className="p-4 rounded-xl bg-zinc-900 border border-white/10 space-y-4">
                                 <div className="flex items-center gap-3">
                                     {agent.avatar_url ? (
                                         <img src={agent.avatar_url} alt={agent.name} className="w-12 h-12 rounded-full object-cover border border-white/10" />
@@ -551,20 +570,21 @@ export default function AgentDetailsPage() {
                                     {(agent.behavior_settings?.temperature ?? 0.5).toFixed(1)}
                                     </span>
                                 </div>
-                            </div>
+                             </div>
 
-                            <div className="p-4 rounded-xl bg-black/30 border border-white/5 mt-auto text-center">
+                             <div className="p-4 rounded-xl bg-zinc-900 border border-white/10 text-center">
                                 <h3 className="text-sm font-semibold text-gray-300 mb-2">Ready to integrate?</h3>
                                 <p className="text-xs text-gray-500 mb-3">Copy this Agent ID when configuring the Insydr.AI widget on your site.</p>
                                 <code className="block bg-black/50 p-2 text-center rounded text-xs text-gray-400 font-mono select-all border border-white/10 overflow-hidden text-ellipsis">
                                     {agent.id}
                                 </code>
+                             </div>
                             </div>
                          </div>
                          
                          {/* Chat Interface */}
                          <div className="flex-1 min-h-0 bg-zinc-900 border border-white/10 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
-                            <div className="p-4 border-b border-white/10 flex items-center justify-between" style={{ backgroundColor: widgetSettings.primaryColor }}>
+                            <div className="p-4 border-b border-white/10 flex items-center justify-between shrink-0" style={{ backgroundColor: widgetSettings.primaryColor }}>
                                 <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                                       {agent.avatar_url ? (
@@ -626,7 +646,7 @@ export default function AgentDetailsPage() {
                                 )}
                                 <div ref={messagesEndRef} />
                             </div>
-                            <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 bg-zinc-950">
+                            <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 bg-zinc-950 shrink-0">
                                 <div className="flex items-center gap-2">
                                     <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a message..." className="flex-1 bg-zinc-800 border-none rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all font-light" />
                                     <button 
@@ -1216,601 +1236,778 @@ export default function AgentDetailsPage() {
                     </motion.div>
                 </Tab.Panel>
 
-                {/* 4. Settings Panel */}
-                <Tab.Panel className="h-full p-6 focus:outline-none overflow-y-auto pb-32">
-                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl space-y-8">
-                         
-                         {/* General Settings */}
-                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
-                            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                                <Settings className="w-5 h-5 text-gray-400" />
-                                General Settings
-                            </h2>
-                            <div className="space-y-6 max-w-xl">
-                                {/* Avatar Upload Section */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-3">Agent Avatar</label>
-                                    <div className="flex items-center gap-5">
-                                        {/* Avatar Preview */}
-                                        <div className="relative group">
-                                            {agent.avatar_url ? (
-                                                <img 
-                                                    src={agent.avatar_url} 
-                                                    alt={agent.name}
-                                                    className="w-20 h-20 rounded-2xl object-cover border-2 border-white/10 group-hover:border-red-500/50 transition-colors"
-                                                />
-                                            ) : (
-                                                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-zinc-800 to-zinc-900 border-2 border-dashed border-white/20 flex items-center justify-center group-hover:border-red-500/50 transition-colors">
-                                                    <Camera className="w-6 h-6 text-gray-500 group-hover:text-red-400 transition-colors" />
-                                                </div>
-                                            )}
-                                            {isUploadingAvatar && (
-                                                <div className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center">
-                                                    <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex flex-col gap-2">
-                                            <input
-                                                ref={avatarInputRef}
-                                                type="file"
-                                                accept="image/jpeg,image/png,image/webp,image/gif"
-                                                onChange={handleAvatarUpload}
-                                                className="hidden"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => avatarInputRef.current?.click()}
-                                                disabled={isUploadingAvatar}
-                                                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white text-sm font-medium rounded-lg transition-colors border border-white/10 flex items-center gap-2 disabled:opacity-50"
-                                            >
-                                                <Camera className="w-4 h-4" />
-                                                {agent.avatar_url ? 'Change Avatar' : 'Upload Avatar'}
-                                            </button>
-                                            {agent.avatar_url && (
-                                                <button
-                                                    type="button"
-                                                    onClick={handleDeleteAvatar}
-                                                    className="px-4 py-2 text-red-400 hover:text-red-300 text-sm font-medium rounded-lg transition-colors border border-red-500/20 hover:bg-red-500/10 flex items-center gap-2"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                    Remove
-                                                </button>
-                                            )}
-                                            <p className="text-[11px] text-gray-500">JPEG, PNG, WebP, or GIF · Max 5MB · Cropped to 256×256</p>
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <div className="border-t border-white/5 pt-6">
-                                    <label className="block text-sm font-medium text-gray-400 mb-1">Agent Name</label>
-                                    <input 
-                                        type="text" 
-                                        value={agent.name}
-                                        onChange={(e) => {
-                                            setAgent({...agent, name: e.target.value});
-                                            setHasUnsavedChanges(true);
-                                        }}
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-red-500/50 transition-colors"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1">Description</label>
-                                    <textarea 
-                                        value={agent.description || ''}
-                                        onChange={(e) => {
-                                            setAgent({...agent, description: e.target.value});
-                                            setHasUnsavedChanges(true);
-                                        }}
-                                        rows={3}
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-red-500/50 transition-colors resize-none"
-                                        placeholder="Describe what this agent does..."
-                                    />
-                                </div>
-
-                                {/* Visibility Toggle */}
-                                <div className="border-t border-white/5 pt-6">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <label className="block text-sm font-medium text-white">Widget Visibility</label>
-                                            <p className="text-xs text-gray-500 mt-1">
-                                                {agent.is_active 
-                                                    ? 'This agent is currently visible on embedded websites.' 
-                                                    : 'This agent is hidden and will not appear on any website.'}
-                                            </p>
-                                        </div>
-                                        <button
-                                            onClick={handleToggleActive}
-                                            disabled={isTogglingActive}
-                                            className={classNames(
-                                                "relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none",
-                                                agent.is_active ? "bg-emerald-500" : "bg-gray-600"
-                                            )}
-                                        >
-                                            <span className={classNames(
-                                                "inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform",
-                                                agent.is_active ? "translate-x-6" : "translate-x-1"
-                                            )} />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                         </div>
-
-                         {/* Response Configuration */}
-                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
-                            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-                                <Zap className="w-5 h-5 text-amber-400" />
-                                Response Configuration
-                            </h2>
-                            <p className="text-sm text-gray-400 mb-6">Control how your agent formats and delivers responses.</p>
-                            <div className="space-y-6 max-w-xl">
-                                {/* Max Response Length */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-2">
-                                        Max Response Length <span className="text-gray-500 font-normal">(words)</span>
-                                    </label>
-                                    <div className="flex items-center gap-4">
-                                        <input
-                                            type="range"
-                                            min={0}
-                                            max={500}
-                                            step={10}
-                                            value={agent.response_config?.max_length || 0}
-                                            onChange={(e) => {
-                                                setAgent({ ...agent, response_config: { ...agent.response_config, max_length: parseInt(e.target.value) } });
-                                                setHasUnsavedChanges(true);
-                                            }}
-                                            className="flex-1 accent-amber-500 h-2 bg-zinc-700 rounded-full"
-                                        />
-                                        <span className="text-white text-sm font-mono w-16 text-right">
-                                            {agent.response_config?.max_length || 'Auto'}
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1">0 = no limit. The agent will try to keep responses under this word count.</p>
-                                </div>
-
-                                {/* Confidence Threshold */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-2">
-                                        Confidence Threshold
-                                    </label>
-                                    <div className="flex items-center gap-4">
-                                        <input
-                                            type="range"
-                                            min={0}
-                                            max={100}
-                                            step={5}
-                                            value={(agent.response_config?.confidence_threshold || 0) * 100}
-                                            onChange={(e) => {
-                                                setAgent({ ...agent, response_config: { ...agent.response_config, confidence_threshold: parseInt(e.target.value) / 100 } });
-                                                setHasUnsavedChanges(true);
-                                            }}
-                                            className="flex-1 accent-amber-500 h-2 bg-zinc-700 rounded-full"
-                                        />
-                                        <span className="text-white text-sm font-mono w-16 text-right">
-                                            {Math.round((agent.response_config?.confidence_threshold || 0) * 100)}%
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1">Below this confidence, the agent will use the fallback message instead of guessing.</p>
-                                </div>
-
-                                {/* Fallback Message */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1">Custom Fallback Message</label>
-                                    <textarea
-                                        value={agent.response_config?.fallback_message || ''}
-                                        onChange={(e) => {
-                                            setAgent({ ...agent, response_config: { ...agent.response_config, fallback_message: e.target.value } });
-                                            setHasUnsavedChanges(true);
-                                        }}
-                                        rows={2}
-                                        placeholder="I don't have enough information to answer that accurately..."
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500/50 transition-colors resize-none"
-                                    />
-                                </div>
-
-                                {/* Show Citations Toggle */}
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <label className="block text-sm font-medium text-white">Source Citations</label>
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            Show document source names at the end of responses.
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            setAgent({ ...agent, response_config: { ...agent.response_config, show_citations: !agent.response_config?.show_citations } });
-                                            setHasUnsavedChanges(true);
-                                        }}
-                                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
-                                            agent.response_config?.show_citations ? 'bg-amber-500' : 'bg-gray-600'
-                                        }`}
-                                    >
-                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
-                                            agent.response_config?.show_citations ? 'translate-x-6' : 'translate-x-1'
-                                        }`} />
-                                    </button>
-                                </div>
-
-                                {/* Response Format */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-2">Response Format</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {[
-                                            { value: 'mixed', label: '🔀 Mixed' },
-                                            { value: 'paragraphs', label: '📄 Paragraphs' },
-                                            { value: 'bullets', label: '• Bullets' },
-                                            { value: 'numbered', label: '1. Numbered' },
-                                        ].map((fmt) => (
-                                            <button
-                                                key={fmt.value}
-                                                onClick={() => {
-                                                    setAgent({ ...agent, response_config: { ...agent.response_config, response_format: fmt.value } });
-                                                    setHasUnsavedChanges(true);
-                                                }}
-                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                                                    (agent.response_config?.response_format || 'mixed') === fmt.value
-                                                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                                                        : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
-                                                }`}
-                                            >
-                                                {fmt.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                         </div>
-
-                         {/* Conversation Rules & Guardrails */}
-                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
-                            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-                                <Shield className="w-5 h-5 text-purple-400" />
-                                Conversation Rules & Guardrails
-                            </h2>
-                            <p className="text-sm text-gray-400 mb-6">Define boundaries and rules for your agent&apos;s conversations.</p>
-                            <div className="space-y-6 max-w-xl">
-                                {/* Allowed Topics */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-2">
-                                        Allowed Topics <span className="text-gray-500 font-normal">(leave empty for all)</span>
-                                    </label>
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {(agent.conversation_rules?.allowed_topics || []).map((topic, idx) => (
-                                            <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/15 text-purple-300 text-sm rounded-full border border-purple-500/20">
-                                                {topic}
-                                                <button onClick={() => {
-                                                    const topics = [...(agent.conversation_rules?.allowed_topics || [])];
-                                                    topics.splice(idx, 1);
-                                                    setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, allowed_topics: topics } });
-                                                    setHasUnsavedChanges(true);
-                                                }} className="hover:text-purple-100">
-                                                    <X className="w-3 h-3" />
-                                                </button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <input
-                                        type="text"
-                                        value={topicInput}
-                                        onChange={(e) => {
-                                            setTopicInput(e.target.value);
-                                            setHasUnsavedChanges(true);
-                                        }}
-                                        placeholder="Type a topic and press Enter..."
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500/50 transition-colors"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && topicInput.trim()) {
-                                                const val = topicInput.trim();
-                                                const topics = [...(agent.conversation_rules?.allowed_topics || []), val];
-                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, allowed_topics: topics } });
-                                                setTopicInput('');
-                                                setHasUnsavedChanges(true);
-                                            }
-                                        }}
-                                        onBlur={() => {
-                                            if (topicInput.trim()) {
-                                                const val = topicInput.trim();
-                                                const topics = [...(agent.conversation_rules?.allowed_topics || []), val];
-                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, allowed_topics: topics } });
-                                                setTopicInput('');
-                                                setHasUnsavedChanges(true);
-                                            }
-                                        }}
-                                    />
-                                </div>
-
-                                {/* Blocked Words / Topics */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-2">
-                                        Blocked Words / Topics
-                                    </label>
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {(agent.conversation_rules?.blocked_words || []).map((word, idx) => (
-                                            <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 text-red-300 text-sm rounded-full border border-red-500/20">
-                                                {word}
-                                                <button onClick={() => {
-                                                    const words = [...(agent.conversation_rules?.blocked_words || [])];
-                                                    words.splice(idx, 1);
-                                                    setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, blocked_words: words } });
-                                                    setHasUnsavedChanges(true);
-                                                }} className="hover:text-red-100">
-                                                    <X className="w-3 h-3" />
-                                                </button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <input
-                                        type="text"
-                                        value={blockedWordInput}
-                                        onChange={(e) => {
-                                            setBlockedWordInput(e.target.value);
-                                            setHasUnsavedChanges(true);
-                                        }}
-                                        placeholder="Type a blocked word and press Enter..."
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-red-500/50 transition-colors"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && blockedWordInput.trim()) {
-                                                const val = blockedWordInput.trim();
-                                                const words = [...(agent.conversation_rules?.blocked_words || []), val];
-                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, blocked_words: words } });
-                                                setBlockedWordInput('');
-                                                setHasUnsavedChanges(true);
-                                            }
-                                        }}
-                                        onBlur={() => {
-                                            if (blockedWordInput.trim()) {
-                                                const val = blockedWordInput.trim();
-                                                const words = [...(agent.conversation_rules?.blocked_words || []), val];
-                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, blocked_words: words } });
-                                                setBlockedWordInput('');
-                                                setHasUnsavedChanges(true);
-                                            }
-                                        }}
-                                    />
-                                </div>
-
-                                {/* End-of-Conversation Message */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1">End-of-Conversation Message</label>
-                                    <textarea
-                                        value={agent.conversation_rules?.end_message || ''}
-                                        onChange={(e) => {
-                                            setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, end_message: e.target.value } });
-                                            setHasUnsavedChanges(true);
-                                        }}
-                                        rows={2}
-                                        placeholder="Thanks for chatting! If you need more help, feel free to reach out..."
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500/50 transition-colors resize-none"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">Shown when the visitor says goodbye or the conversation ends.</p>
-                                </div>
-
-
-                            </div>
-                         </div>
-
-                         {/* CTA Email — Lead Generation */}
-                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
-                            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-                                <MessageSquare className="w-5 h-5 text-blue-400" />
-                                Lead Generation (CTA Email)
-                            </h2>
-                            <p className="text-sm text-gray-400 mb-6">
-                                Set up an email to receive visitor leads. When a visitor shows interest, they&apos;ll be 
-                                able to share their contact info. You&apos;ll get an email with their details and conversation summary.
-                            </p>
-                            <div className="space-y-4 max-w-xl">
-                                {agent.conversation_rules?.cta_email_verified ? (
-                                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <CheckCircle className="w-5 h-5 text-emerald-400" />
-                                            <span className="text-sm font-medium text-emerald-300">Verified Email</span>
-                                        </div>
-                                        <p className="text-sm text-gray-300 font-mono bg-black/30 px-3 py-2 rounded-lg">
-                                            {agent.conversation_rules?.cta_email}
-                                        </p>
-                                        <button
-                                            onClick={() => {
-                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, cta_email: '', cta_email_verified: false } });
-                                                setCtaOtpSent(false);
-                                                setCtaEmailInput('');
-                                                setHasUnsavedChanges(true);
-                                            }}
-                                            className="mt-3 text-sm text-red-400 hover:text-red-300 underline underline-offset-4"
-                                        >
-                                            Change email
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="flex gap-3">
-                                            <input
-                                                type="email"
-                                                value={ctaEmailInput}
-                                                onChange={(e) => setCtaEmailInput(e.target.value)}
-                                                placeholder="your-email@company.com"
-                                                className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors"
-                                                disabled={ctaOtpSent}
-                                            />
-                                            {!ctaOtpSent ? (
-                                                <button
-                                                    onClick={async () => {
-                                                        if (!ctaEmailInput.trim() || !ctaEmailInput.includes('@')) {
-                                                            toast.error('Please enter a valid email');
-                                                            return;
-                                                        }
-                                                        setCtaSending(true);
-                                                        try {
-                                                            await sendCtaEmailOtp(agent.id, ctaEmailInput);
-                                                            setCtaOtpSent(true);
-                                                            toast.success('OTP sent! Check your email.');
-                                                        } catch (e: any) {
-                                                            toast.error(e?.response?.data?.detail || 'Failed to send OTP');
-                                                        } finally {
-                                                            setCtaSending(false);
-                                                        }
-                                                    }}
-                                                    disabled={ctaSending || !ctaEmailInput}
-                                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
-                                                >
-                                                    {ctaSending ? 'Sending...' : 'Send OTP'}
-                                                </button>
-                                            ) : null}
-                                        </div>
-
-                                        {ctaOtpSent && (
-                                            <div className="space-y-3">
-                                                <p className="text-sm text-blue-300">
-                                                    ✉️ We sent a 6-digit code to <strong>{ctaEmailInput}</strong>
-                                                </p>
-                                                <div className="flex gap-3">
-                                                    <input
-                                                        type="text"
-                                                        value={ctaOtpInput}
-                                                        onChange={(e) => setCtaOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                                        placeholder="Enter 6-digit OTP"
-                                                        maxLength={6}
-                                                        className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm text-center tracking-[0.5em] font-mono focus:outline-none focus:border-blue-500/50 transition-colors"
-                                                    />
-                                                    <button
-                                                        onClick={async () => {
-                                                            if (ctaOtpInput.length !== 6) {
-                                                                toast.error('Please enter the full 6-digit code');
-                                                                return;
-                                                            }
-                                                            setCtaVerifying(true);
-                                                            try {
-                                                                await verifyCtaEmailOtp(agent.id, ctaEmailInput, ctaOtpInput);
-                                                                setAgent({
-                                                                    ...agent,
-                                                                    conversation_rules: {
-                                                                        ...agent.conversation_rules,
-                                                                        cta_email: ctaEmailInput,
-                                                                        cta_email_verified: true,
-                                                                    }
-                                                                });
-                                                                setCtaOtpSent(false);
-                                                                setCtaOtpInput('');
-                                                                toast.success('Email verified! Leads will be sent here.');
-                                                            } catch (e: any) {
-                                                                toast.error(e?.response?.data?.detail || 'Verification failed');
-                                                            } finally {
-                                                                setCtaVerifying(false);
-                                                            }
-                                                        }}
-                                                        disabled={ctaVerifying || ctaOtpInput.length !== 6}
-                                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
-                                                    >
-                                                        {ctaVerifying ? 'Verifying...' : 'Verify'}
-                                                    </button>
-                                                </div>
-                                                <button
-                                                    onClick={() => {
-                                                        setCtaOtpSent(false);
-                                                        setCtaOtpInput('');
-                                                    }}
-                                                    className="text-xs text-gray-500 hover:text-gray-300 underline underline-offset-4"
-                                                >
-                                                    Use a different email
-                                                </button>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                         </div>
-
-                         {/* Domain Security */}
-                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
-                            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-                                <Shield className="w-5 h-5 text-emerald-500" />
-                                Domain Security (Agent Level)
-                            </h2>
-                            <p className="text-sm text-gray-400 mb-6">
-                                Restrict which domains can embed this agent. 
-                                <span className="text-red-400 ml-1">
-                                    If you use an API Key, these rules apply IN ADDITION to the key's restrictions.
-                                </span>
-                            </p>
-
-                            <div className="space-y-4 max-w-xl">
-                                <div className="flex gap-3">
-                                    <div className="relative flex-1">
-                                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                                        <input 
-                                            type="text" 
-                                            value={domainInput}
-                                            onChange={(e) => setDomainInput(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && handleAddDomain()}
-                                            placeholder="example.com"
-                                            className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 transition-colors"
-                                        />
-                                    </div>
-                                    <button 
-                                        onClick={handleAddDomain}
-                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors border border-emerald-500/20"
-                                    >
-                                        Add
-                                    </button>
-                                </div>
-
-                                {(!agent.allowed_domains || agent.allowed_domains.length === 0) ? (
-                                    <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
-                                        <Zap className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                                        <div>
-                                            <p className="text-sm text-amber-200 font-medium">No restrictions set</p>
-                                            <p className="text-xs text-amber-200/60 mt-1">
-                                                This agent can be embedded anywhere unless an API Key is enforced. We recommend adding domains or using an API Key.
-                                            </p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {agent.allowed_domains.map((domain, idx) => (
-                                            <div key={idx} className="flex items-center justify-between p-3 bg-black/40 border border-white/5 rounded-lg group hover:border-white/10 transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <Globe className="w-4 h-4 text-emerald-500" />
-                                                    <span className="text-sm text-gray-300 font-mono">{domain}</span>
-                                                </div>
-                                                <button 
-                                                    onClick={() => handleRemoveDomain(domain)}
-                                                    className="p-1.5 hover:bg-red-500/20 text-gray-500 hover:text-red-400 rounded-lg transition-colors"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                         </div>
-
-                         {/* Danger Zone */}
-                         <div className="bg-red-950/20 border border-red-500/20 rounded-2xl p-6">
-                            <h2 className="text-lg font-semibold text-red-500 mb-4 flex items-center gap-2">
-                                <AlertCircle className="w-5 h-5" />
-                                Danger Zone
-                            </h2>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-white">Delete Agent</p>
-                                    <p className="text-xs text-gray-400 mt-1">Permanently delete this agent and all its conversation history.</p>
-                                </div>
-                                <button 
-                                    onClick={handleDeleteAgent}
-                                    disabled={isDeleting}
-                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors border border-red-500/50 shadow-lg shadow-red-900/20"
+                {/* 6. Conversations Panel */}
+                <Tab.Panel className="flex-1 p-6 focus:outline-none flex flex-col min-h-0">
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-6 flex-1 min-h-0">
+                        {/* Conversation List */}
+                        <div className="w-2/5 flex flex-col min-h-0">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-lg font-semibold text-white">Chat History</h2>
+                                <button
+                                    onClick={loadConversations}
+                                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-gray-300 rounded-lg text-xs font-medium transition-colors border border-white/10"
                                 >
-                                    {isDeleting ? 'Deleting...' : 'Delete Agent'}
+                                    {conversationsLoading ? 'Loading...' : 'Refresh'}
                                 </button>
                             </div>
-                         </div>
 
-                     </motion.div>
+                            {conversations.length === 0 && !conversationsLoading && (
+                                <div className="text-center py-16">
+                                    <MessageSquare className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                                    <p className="text-gray-400 text-sm">No conversations yet.</p>
+                                    <p className="text-gray-500 text-xs mt-1">Conversations will appear here once visitors chat with your agent.</p>
+                                    <button onClick={loadConversations} className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium transition-colors">
+                                        Load Conversations
+                                    </button>
+                                </div>
+                            )}
+
+                            {conversationsLoading && (
+                                <div className="flex items-center justify-center py-12">
+                                    <Sparkles className="w-6 h-6 text-red-500 animate-spin" />
+                                </div>
+                            )}
+
+                            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+                                {conversations.map((conv) => {
+                                    const isSelected = selectedConversation?.id === conv.id;
+                                    const isHotLead = conv.lead_score >= 60;
+                                    return (
+                                        <button
+                                            key={conv.id}
+                                            onClick={() => setSelectedConversation(conv)}
+                                            className={classNames(
+                                                'w-full text-left p-4 rounded-xl border transition-all',
+                                                isSelected
+                                                    ? 'bg-red-600/10 border-red-500/30'
+                                                    : 'bg-zinc-900 border-white/5 hover:border-white/10 hover:bg-zinc-800/80'
+                                            )}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm font-medium text-white truncate">
+                                                            {conv.hostname || conv.referrer_url || 'Direct'}
+                                                        </span>
+                                                        {conv.lead_email_sent && (
+                                                            <Mail className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 mt-1 truncate">
+                                                        {conv.page_title || 'No page title'}
+                                                    </p>
+                                                </div>
+                                                <div className="flex flex-col items-end shrink-0">
+                                                    {isHotLead && (
+                                                        <span className="text-xs font-bold text-orange-400 flex items-center gap-1">
+                                                            🔥 Hot
+                                                        </span>
+                                                    )}
+                                                    <span className={classNames(
+                                                        'text-[11px] font-semibold px-2 py-0.5 rounded-full mt-1',
+                                                        conv.lead_score >= 60 ? 'bg-orange-500/15 text-orange-400' :
+                                                        conv.lead_score >= 30 ? 'bg-yellow-500/15 text-yellow-400' :
+                                                        'bg-gray-500/15 text-gray-400'
+                                                    )}>
+                                                        {conv.lead_score}% lead
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                                                <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {conv.message_count}</span>
+                                                <span className="flex items-center gap-1">
+                                                    <Clock className="w-3 h-3" />
+                                                    {conv.started_at ? new Date(conv.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                                                </span>
+                                            </div>
+                                            {/* Mini lead score bar */}
+                                            <div className="mt-2 h-1 rounded-full bg-zinc-800 overflow-hidden">
+                                                <div
+                                                    className={classNames('h-full rounded-full transition-all',
+                                                        conv.lead_score >= 60 ? 'bg-orange-500' :
+                                                        conv.lead_score >= 30 ? 'bg-yellow-500' :
+                                                        'bg-gray-600'
+                                                    )}
+                                                    style={{ width: `${conv.lead_score}%` }}
+                                                />
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Chat Viewer */}
+                        <div className="flex-1 bg-zinc-900 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
+                            {selectedConversation ? (
+                                <>
+                                    {/* Header */}
+                                    <div className="p-4 border-b border-white/10 bg-zinc-950">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="text-sm font-semibold text-white">
+                                                    {selectedConversation.hostname || 'Direct Visit'}
+                                                </h3>
+                                                <p className="text-xs text-gray-500 mt-0.5">
+                                                    {selectedConversation.referrer_url || 'No referrer'}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                {selectedConversation.lead_email_sent && (
+                                                    <span className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full border border-emerald-500/20">
+                                                        <Mail className="w-3 h-3" /> Lead Captured
+                                                    </span>
+                                                )}
+                                                <span className={classNames(
+                                                    'text-xs font-bold px-3 py-1 rounded-full',
+                                                    selectedConversation.lead_score >= 60 ? 'bg-orange-500/15 text-orange-400 border border-orange-500/20' :
+                                                    selectedConversation.lead_score >= 30 ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20' :
+                                                    'bg-gray-500/15 text-gray-400 border border-gray-500/20'
+                                                )}>
+                                                    Lead Score: {selectedConversation.lead_score}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                                            <span>IP: {selectedConversation.user_ip || '—'}</span>
+                                            <span>Messages: {selectedConversation.message_count}</span>
+                                            <span>Started: {selectedConversation.started_at ? new Date(selectedConversation.started_at).toLocaleString() : '—'}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Messages */}
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                                        {selectedConversation.messages.map((msg) => (
+                                            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                                <div className={classNames(
+                                                    'max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm',
+                                                    msg.role === 'user'
+                                                        ? 'bg-red-600 text-white rounded-tr-none'
+                                                        : 'bg-zinc-800 text-gray-200 rounded-tl-none border border-white/5'
+                                                )}>
+                                                    {msg.role === 'assistant' ? (
+                                                        <div className="prose prose-invert prose-sm max-w-none">
+                                                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                                        </div>
+                                                    ) : (
+                                                        msg.content
+                                                    )}
+                                                    <div className="text-[10px] opacity-50 mt-1 text-right">
+                                                        {msg.created_at ? new Date(msg.created_at).toLocaleTimeString() : ''}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex-1 flex flex-col items-center justify-center text-center opacity-50 space-y-4 p-8">
+                                    <MessageSquare className="w-16 h-16 text-gray-600" />
+                                    <div>
+                                        <p className="text-gray-400 text-sm font-medium">Select a conversation</p>
+                                        <p className="text-gray-500 text-xs mt-1">Click on a conversation from the list to view the full chat history</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
                 </Tab.Panel>
 
+                                {/* 4. Settings Panel */}
+                                <Tab.Panel className="h-full p-6 focus:outline-none overflow-y-auto pb-32">
+                                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl space-y-8">
+                                         
+                                         {/* General Settings */}
+                                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
+                                            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                                <Settings className="w-5 h-5 text-gray-400" />
+                                                General Settings
+                                            </h2>
+                                            <div className="space-y-6 max-w-xl">
+                                                {/* Avatar Upload Section */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-3">Agent Avatar</label>
+                                                    <div className="flex items-center gap-5">
+                                                        {/* Avatar Preview */}
+                                                        <div className="relative group">
+                                                            {agent.avatar_url ? (
+                                                                <img 
+                                                                    src={agent.avatar_url} 
+                                                                    alt={agent.name}
+                                                                    className="w-20 h-20 rounded-2xl object-cover border-2 border-white/10 group-hover:border-red-500/50 transition-colors"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-zinc-800 to-zinc-900 border-2 border-dashed border-white/20 flex items-center justify-center group-hover:border-red-500/50 transition-colors">
+                                                                    <Camera className="w-6 h-6 text-gray-500 group-hover:text-red-400 transition-colors" />
+                                                                </div>
+                                                            )}
+                                                            {isUploadingAvatar && (
+                                                                <div className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center">
+                                                                    <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex flex-col gap-2">
+                                                            <input
+                                                                ref={avatarInputRef}
+                                                                type="file"
+                                                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                                                onChange={handleAvatarUpload}
+                                                                className="hidden"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => avatarInputRef.current?.click()}
+                                                                disabled={isUploadingAvatar}
+                                                                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white text-sm font-medium rounded-lg transition-colors border border-white/10 flex items-center gap-2 disabled:opacity-50"
+                                                            >
+                                                                <Camera className="w-4 h-4" />
+                                                                {agent.avatar_url ? 'Change Avatar' : 'Upload Avatar'}
+                                                            </button>
+                                                            {agent.avatar_url && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleDeleteAvatar}
+                                                                    className="px-4 py-2 text-red-400 hover:text-red-300 text-sm font-medium rounded-lg transition-colors border border-red-500/20 hover:bg-red-500/10 flex items-center gap-2"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                    Remove
+                                                                </button>
+                                                            )}
+                                                            <p className="text-[11px] text-gray-500">JPEG, PNG, WebP, or GIF · Max 5MB · Cropped to 256×256</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                
+                                                <div className="border-t border-white/5 pt-6">
+                                                    <label className="block text-sm font-medium text-gray-400 mb-1">Agent Name</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={agent.name}
+                                                        onChange={(e) => {
+                                                            setAgent({...agent, name: e.target.value});
+                                                            setHasUnsavedChanges(true);
+                                                        }}
+                                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-red-500/50 transition-colors"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-1">Description</label>
+                                                    <textarea 
+                                                        value={agent.description || ''}
+                                                        onChange={(e) => {
+                                                            setAgent({...agent, description: e.target.value});
+                                                            setHasUnsavedChanges(true);
+                                                        }}
+                                                        rows={3}
+                                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-red-500/50 transition-colors resize-none"
+                                                        placeholder="Describe what this agent does..."
+                                                    />
+                                                </div>
+                
+                                                {/* Visibility Toggle */}
+                                                <div className="border-t border-white/5 pt-6">
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-white">Widget Visibility</label>
+                                                            <p className="text-xs text-gray-500 mt-1">
+                                                                {agent.is_active 
+                                                                    ? 'This agent is currently visible on embedded websites.' 
+                                                                    : 'This agent is hidden and will not appear on any website.'}
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            onClick={handleToggleActive}
+                                                            disabled={isTogglingActive}
+                                                            className={classNames(
+                                                                "relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none",
+                                                                agent.is_active ? "bg-emerald-500" : "bg-gray-600"
+                                                            )}
+                                                        >
+                                                            <span className={classNames(
+                                                                "inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform",
+                                                                agent.is_active ? "translate-x-6" : "translate-x-1"
+                                                            )} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                         </div>
+                
+                                         {/* Response Configuration */}
+                                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
+                                            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                                                <Zap className="w-5 h-5 text-amber-400" />
+                                                Response Configuration
+                                            </h2>
+                                            <p className="text-sm text-gray-400 mb-6">Control how your agent formats and delivers responses.</p>
+                                            <div className="space-y-6 max-w-xl">
+                                                {/* Max Response Length */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                                        Max Response Length <span className="text-gray-500 font-normal">(words)</span>
+                                                    </label>
+                                                    <div className="flex items-center gap-4">
+                                                        <input
+                                                            type="range"
+                                                            min={0}
+                                                            max={500}
+                                                            step={10}
+                                                            value={agent.response_config?.max_length || 0}
+                                                            onChange={(e) => {
+                                                                setAgent({ ...agent, response_config: { ...agent.response_config, max_length: parseInt(e.target.value) } });
+                                                                setHasUnsavedChanges(true);
+                                                            }}
+                                                            className="flex-1 accent-amber-500 h-2 bg-zinc-700 rounded-full"
+                                                        />
+                                                        <span className="text-white text-sm font-mono w-16 text-right">
+                                                            {agent.response_config?.max_length || 'Auto'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 mt-1">0 = no limit. The agent will try to keep responses under this word count.</p>
+                                                </div>
+                
+                                                {/* Confidence Threshold */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                                        Confidence Threshold
+                                                    </label>
+                                                    <div className="flex items-center gap-4">
+                                                        <input
+                                                            type="range"
+                                                            min={0}
+                                                            max={100}
+                                                            step={5}
+                                                            value={(agent.response_config?.confidence_threshold || 0) * 100}
+                                                            onChange={(e) => {
+                                                                setAgent({ ...agent, response_config: { ...agent.response_config, confidence_threshold: parseInt(e.target.value) / 100 } });
+                                                                setHasUnsavedChanges(true);
+                                                            }}
+                                                            className="flex-1 accent-amber-500 h-2 bg-zinc-700 rounded-full"
+                                                        />
+                                                        <span className="text-white text-sm font-mono w-16 text-right">
+                                                            {Math.round((agent.response_config?.confidence_threshold || 0) * 100)}%
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 mt-1">Below this confidence, the agent will use the fallback message instead of guessing.</p>
+                                                </div>
+                
+                                                {/* Fallback Message */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-1">Custom Fallback Message</label>
+                                                    <textarea
+                                                        value={agent.response_config?.fallback_message || ''}
+                                                        onChange={(e) => {
+                                                            setAgent({ ...agent, response_config: { ...agent.response_config, fallback_message: e.target.value } });
+                                                            setHasUnsavedChanges(true);
+                                                        }}
+                                                        rows={2}
+                                                        placeholder="I don't have enough information to answer that accurately..."
+                                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500/50 transition-colors resize-none"
+                                                    />
+                                                </div>
+                
+                                                {/* Show Citations Toggle */}
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-white">Source Citations</label>
+                                                        <p className="text-xs text-gray-500 mt-1">
+                                                            Show document source names at the end of responses.
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setAgent({ ...agent, response_config: { ...agent.response_config, show_citations: !agent.response_config?.show_citations } });
+                                                            setHasUnsavedChanges(true);
+                                                        }}
+                                                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
+                                                            agent.response_config?.show_citations ? 'bg-amber-500' : 'bg-gray-600'
+                                                        }`}
+                                                    >
+                                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+                                                            agent.response_config?.show_citations ? 'translate-x-6' : 'translate-x-1'
+                                                        }`} />
+                                                    </button>
+                                                </div>
+                
+                                                {/* Response Format */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-2">Response Format</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {[
+                                                            { value: 'mixed', label: '🔀 Mixed' },
+                                                            { value: 'paragraphs', label: '📄 Paragraphs' },
+                                                            { value: 'bullets', label: '• Bullets' },
+                                                            { value: 'numbered', label: '1. Numbered' },
+                                                        ].map((fmt) => (
+                                                            <button
+                                                                key={fmt.value}
+                                                                onClick={() => {
+                                                                    setAgent({ ...agent, response_config: { ...agent.response_config, response_format: fmt.value } });
+                                                                    setHasUnsavedChanges(true);
+                                                                }}
+                                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                                                    (agent.response_config?.response_format || 'mixed') === fmt.value
+                                                                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                                                        : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+                                                                }`}
+                                                            >
+                                                                {fmt.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                         </div>
+                
+                                         {/* Conversation Rules & Guardrails */}
+                                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
+                                            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                                                <Shield className="w-5 h-5 text-purple-400" />
+                                                Conversation Rules & Guardrails
+                                            </h2>
+                                            <p className="text-sm text-gray-400 mb-6">Define boundaries and rules for your agent&apos;s conversations.</p>
+                                            <div className="space-y-6 max-w-xl">
+                                                {/* Allowed Topics */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                                        Allowed Topics <span className="text-gray-500 font-normal">(leave empty for all)</span>
+                                                    </label>
+                                                    <div className="flex flex-wrap gap-2 mb-2">
+                                                        {(agent.conversation_rules?.allowed_topics || []).map((topic, idx) => (
+                                                            <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/15 text-purple-300 text-sm rounded-full border border-purple-500/20">
+                                                                {topic}
+                                                                <button onClick={() => {
+                                                                    const topics = [...(agent.conversation_rules?.allowed_topics || [])];
+                                                                    topics.splice(idx, 1);
+                                                                    setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, allowed_topics: topics } });
+                                                                    setHasUnsavedChanges(true);
+                                                                }} className="hover:text-purple-100">
+                                                                    <X className="w-3 h-3" />
+                                                                </button>
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        value={topicInput}
+                                                        onChange={(e) => {
+                                                            setTopicInput(e.target.value);
+                                                            setHasUnsavedChanges(true);
+                                                        }}
+                                                        placeholder="Type a topic and press Enter..."
+                                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500/50 transition-colors"
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter' && topicInput.trim()) {
+                                                                const val = topicInput.trim();
+                                                                const topics = [...(agent.conversation_rules?.allowed_topics || []), val];
+                                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, allowed_topics: topics } });
+                                                                setTopicInput('');
+                                                                setHasUnsavedChanges(true);
+                                                            }
+                                                        }}
+                                                        onBlur={() => {
+                                                            if (topicInput.trim()) {
+                                                                const val = topicInput.trim();
+                                                                const topics = [...(agent.conversation_rules?.allowed_topics || []), val];
+                                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, allowed_topics: topics } });
+                                                                setTopicInput('');
+                                                                setHasUnsavedChanges(true);
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                
+                                                {/* Blocked Words / Topics */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                                        Blocked Words / Topics
+                                                    </label>
+                                                    <div className="flex flex-wrap gap-2 mb-2">
+                                                        {(agent.conversation_rules?.blocked_words || []).map((word, idx) => (
+                                                            <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 text-red-300 text-sm rounded-full border border-red-500/20">
+                                                                {word}
+                                                                <button onClick={() => {
+                                                                    const words = [...(agent.conversation_rules?.blocked_words || [])];
+                                                                    words.splice(idx, 1);
+                                                                    setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, blocked_words: words } });
+                                                                    setHasUnsavedChanges(true);
+                                                                }} className="hover:text-red-100">
+                                                                    <X className="w-3 h-3" />
+                                                                </button>
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        value={blockedWordInput}
+                                                        onChange={(e) => {
+                                                            setBlockedWordInput(e.target.value);
+                                                            setHasUnsavedChanges(true);
+                                                        }}
+                                                        placeholder="Type a blocked word and press Enter..."
+                                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-red-500/50 transition-colors"
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter' && blockedWordInput.trim()) {
+                                                                const val = blockedWordInput.trim();
+                                                                const words = [...(agent.conversation_rules?.blocked_words || []), val];
+                                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, blocked_words: words } });
+                                                                setBlockedWordInput('');
+                                                                setHasUnsavedChanges(true);
+                                                            }
+                                                        }}
+                                                        onBlur={() => {
+                                                            if (blockedWordInput.trim()) {
+                                                                const val = blockedWordInput.trim();
+                                                                const words = [...(agent.conversation_rules?.blocked_words || []), val];
+                                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, blocked_words: words } });
+                                                                setBlockedWordInput('');
+                                                                setHasUnsavedChanges(true);
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                
+                                                {/* End-of-Conversation Message */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-1">End-of-Conversation Message</label>
+                                                    <textarea
+                                                        value={agent.conversation_rules?.end_message || ''}
+                                                        onChange={(e) => {
+                                                            setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, end_message: e.target.value } });
+                                                            setHasUnsavedChanges(true);
+                                                        }}
+                                                        rows={2}
+                                                        placeholder="Thanks for chatting! If you need more help, feel free to reach out..."
+                                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500/50 transition-colors resize-none"
+                                                    />
+                                                    <p className="text-xs text-gray-500 mt-1">Shown when the visitor says goodbye or the conversation ends.</p>
+                                                </div>
+                
+                
+                                            </div>
+                                         </div>
+                
+                                         {/* CTA Email — Lead Generation */}
+                                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
+                                            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                                                <MessageSquare className="w-5 h-5 text-blue-400" />
+                                                Lead Generation (CTA Email)
+                                            </h2>
+                                            <p className="text-sm text-gray-400 mb-6">
+                                                Set up an email to receive visitor leads. When a visitor shows interest, they&apos;ll be 
+                                                able to share their contact info. You&apos;ll get an email with their details and conversation summary.
+                                            </p>
+                                            <div className="space-y-4 max-w-xl">
+                                                {agent.conversation_rules?.cta_email_verified ? (
+                                                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                                                        <div className="flex items-center gap-3 mb-2">
+                                                            <CheckCircle className="w-5 h-5 text-emerald-400" />
+                                                            <span className="text-sm font-medium text-emerald-300">Verified Email</span>
+                                                        </div>
+                                                        <p className="text-sm text-gray-300 font-mono bg-black/30 px-3 py-2 rounded-lg">
+                                                            {agent.conversation_rules?.cta_email}
+                                                        </p>
+                                                        <button
+                                                            onClick={() => {
+                                                                setAgent({ ...agent, conversation_rules: { ...agent.conversation_rules, cta_email: '', cta_email_verified: false } });
+                                                                setCtaOtpSent(false);
+                                                                setCtaEmailInput('');
+                                                                setHasUnsavedChanges(true);
+                                                            }}
+                                                            className="mt-3 text-sm text-red-400 hover:text-red-300 underline underline-offset-4"
+                                                        >
+                                                            Change email
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <div className="flex gap-3">
+                                                            <input
+                                                                type="email"
+                                                                value={ctaEmailInput}
+                                                                onChange={(e) => setCtaEmailInput(e.target.value)}
+                                                                placeholder="your-email@company.com"
+                                                                className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors"
+                                                                disabled={ctaOtpSent}
+                                                            />
+                                                            {!ctaOtpSent ? (
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (!ctaEmailInput.trim() || !ctaEmailInput.includes('@')) {
+                                                                            toast.error('Please enter a valid email');
+                                                                            return;
+                                                                        }
+                                                                        setCtaSending(true);
+                                                                        try {
+                                                                            await sendCtaEmailOtp(agent.id, ctaEmailInput);
+                                                                            setCtaOtpSent(true);
+                                                                            toast.success('OTP sent! Check your email.');
+                                                                        } catch (e: any) {
+                                                                            toast.error(e?.response?.data?.detail || 'Failed to send OTP');
+                                                                        } finally {
+                                                                            setCtaSending(false);
+                                                                        }
+                                                                    }}
+                                                                    disabled={ctaSending || !ctaEmailInput}
+                                                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+                                                                >
+                                                                    {ctaSending ? 'Sending...' : 'Send OTP'}
+                                                                </button>
+                                                            ) : null}
+                                                        </div>
+                
+                                                        {ctaOtpSent && (
+                                                            <div className="space-y-3">
+                                                                <p className="text-sm text-blue-300">
+                                                                    ✉️ We sent a 6-digit code to <strong>{ctaEmailInput}</strong>
+                                                                </p>
+                                                                <div className="flex gap-3">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={ctaOtpInput}
+                                                                        onChange={(e) => setCtaOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                                        placeholder="Enter 6-digit OTP"
+                                                                        maxLength={6}
+                                                                        className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm text-center tracking-[0.5em] font-mono focus:outline-none focus:border-blue-500/50 transition-colors"
+                                                                    />
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            if (ctaOtpInput.length !== 6) {
+                                                                                toast.error('Please enter the full 6-digit code');
+                                                                                return;
+                                                                            }
+                                                                            setCtaVerifying(true);
+                                                                            try {
+                                                                                await verifyCtaEmailOtp(agent.id, ctaEmailInput, ctaOtpInput);
+                                                                                setAgent({
+                                                                                    ...agent,
+                                                                                    conversation_rules: {
+                                                                                        ...agent.conversation_rules,
+                                                                                        cta_email: ctaEmailInput,
+                                                                                        cta_email_verified: true,
+                                                                                    }
+                                                                                });
+                                                                                setCtaOtpSent(false);
+                                                                                setCtaOtpInput('');
+                                                                                toast.success('Email verified! Leads will be sent here.');
+                                                                            } catch (e: any) {
+                                                                                toast.error(e?.response?.data?.detail || 'Verification failed');
+                                                                            } finally {
+                                                                                setCtaVerifying(false);
+                                                                            }
+                                                                        }}
+                                                                        disabled={ctaVerifying || ctaOtpInput.length !== 6}
+                                                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+                                                                    >
+                                                                        {ctaVerifying ? 'Verifying...' : 'Verify'}
+                                                                    </button>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setCtaOtpSent(false);
+                                                                        setCtaOtpInput('');
+                                                                    }}
+                                                                    className="text-xs text-gray-500 hover:text-gray-300 underline underline-offset-4"
+                                                                >
+                                                                    Use a different email
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                         </div>
+                
+                                         {/* Domain Security */}
+                                         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
+                                            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                                                <Shield className="w-5 h-5 text-emerald-500" />
+                                                Domain Security (Agent Level)
+                                            </h2>
+                                            <p className="text-sm text-gray-400 mb-6">
+                                                Restrict which domains can embed this agent. 
+                                                <span className="text-red-400 ml-1">
+                                                    If you use an API Key, these rules apply IN ADDITION to the key's restrictions.
+                                                </span>
+                                            </p>
+                
+                                            <div className="space-y-4 max-w-xl">
+                                                <div className="flex gap-3">
+                                                    <div className="relative flex-1">
+                                                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                                                        <input 
+                                                            type="text" 
+                                                            value={domainInput}
+                                                            onChange={(e) => setDomainInput(e.target.value)}
+                                                            onKeyDown={(e) => e.key === 'Enter' && handleAddDomain()}
+                                                            placeholder="example.com"
+                                                            className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 transition-colors"
+                                                        />
+                                                    </div>
+                                                    <button 
+                                                        onClick={handleAddDomain}
+                                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors border border-emerald-500/20"
+                                                    >
+                                                        Add
+                                                    </button>
+                                                </div>
+                
+                                                {(!agent.allowed_domains || agent.allowed_domains.length === 0) ? (
+                                                    <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
+                                                        <Zap className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                                                        <div>
+                                                            <p className="text-sm text-amber-200 font-medium">No restrictions set</p>
+                                                            <p className="text-xs text-amber-200/60 mt-1">
+                                                                This agent can be embedded anywhere unless an API Key is enforced. We recommend adding domains or using an API Key.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        {agent.allowed_domains.map((domain, idx) => (
+                                                            <div key={idx} className="flex items-center justify-between p-3 bg-black/40 border border-white/5 rounded-lg group hover:border-white/10 transition-colors">
+                                                                <div className="flex items-center gap-3">
+                                                                    <Globe className="w-4 h-4 text-emerald-500" />
+                                                                    <span className="text-sm text-gray-300 font-mono">{domain}</span>
+                                                                </div>
+                                                                <button 
+                                                                    onClick={() => handleRemoveDomain(domain)}
+                                                                    className="p-1.5 hover:bg-red-500/20 text-gray-500 hover:text-red-400 rounded-lg transition-colors"
+                                                                >
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                         </div>
+                
+                                         {/* Danger Zone */}
+                                         <div className="bg-red-950/20 border border-red-500/20 rounded-2xl p-6">
+                                            <h2 className="text-lg font-semibold text-red-500 mb-4 flex items-center gap-2">
+                                                <AlertCircle className="w-5 h-5" />
+                                                Danger Zone
+                                            </h2>
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm font-medium text-white">Delete Agent</p>
+                                                    <p className="text-xs text-gray-400 mt-1">Permanently delete this agent and all its conversation history.</p>
+                                                </div>
+                                                <button 
+                                                    onClick={handleDeleteAgent}
+                                                    disabled={isDeleting}
+                                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors border border-red-500/50 shadow-lg shadow-red-900/20"
+                                                >
+                                                    {isDeleting ? 'Deleting...' : 'Delete Agent'}
+                                                </button>
+                                            </div>
+                                         </div>
+                
+                                     </motion.div>
+                                </Tab.Panel>
             </Tab.Panels>
         </div>
         </Tab.Group>
