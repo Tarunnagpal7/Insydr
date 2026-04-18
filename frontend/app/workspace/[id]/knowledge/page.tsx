@@ -329,7 +329,10 @@ export default function KnowledgePage() {
             <span className="text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString()}</span>
             <span className="w-1 h-1 rounded-full bg-gray-600" />
             <span className="text-xs text-gray-500 uppercase">{doc.source_type}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_STYLES[doc.status] || STATUS_STYLES.uploaded}`}>
+            <span className={`flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border ${STATUS_STYLES[doc.status] || STATUS_STYLES.uploaded}`}>
+              {(doc.status === 'crawling' || doc.status === 'processing') && (
+                <div className="w-3 h-3 border-[1.5px] border-current border-t-transparent rounded-full animate-spin opacity-70" />
+              )}
               {doc.status}
             </span>
             {doc.meta?.tags?.slice(0, 2).map((tag: string, i: number) => (
@@ -770,7 +773,12 @@ function CrawlModal({ workspaceId, onClose, onSuccess }: { workspaceId: string; 
             <p className="text-xs text-yellow-300">Crawling runs in the background. Crawled pages will automatically be grouped into a new Collection named after the website domain.</p>
           </div>
           <button onClick={handleSubmit} disabled={isSubmitting} className="w-full py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-medium rounded-lg transition-colors text-sm">
-            {isSubmitting ? 'Starting...' : 'Start Crawling'}
+            {isSubmitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                Scraping...
+              </span>
+            ) : 'Start Crawling'}
           </button>
         </div>
       </motion.div>

@@ -95,11 +95,15 @@ class WidgetFeedbackRequest(BaseModel):
 # ============ HELPERS ============
 
 def extract_hostname(url: str) -> str:
+    if not url:
+        return ""
     try:
+        if not url.startswith('http://') and not url.startswith('https://'):
+            url = 'http://' + url
         parsed = urlparse(url)
         hostname = parsed.hostname or parsed.netloc
-        return hostname.lower().replace('www.', '')
-    except:
+        return (hostname or "").lower().replace('www.', '').strip()
+    except Exception:
         return ""
 
 
@@ -107,13 +111,14 @@ def is_domain_allowed(hostname: str, allowed_domains: list) -> bool:
     if not allowed_domains or len(allowed_domains) == 0:
         return True
     
-    hostname_clean = hostname.lower().replace('www.', '')
-    dev_hosts = {'localhost', '127.0.0.1'}
-    if hostname_clean in dev_hosts:
-        return True
+    if not hostname:
+        return False
+        
+    hostname_clean = hostname.lower().replace('www.', '').strip()
+    # Hardcoded localhost bypass removed! Localhost must be added to allowed_domains if restricted.
 
-    for domain in allowed_domains:
-        domain_clean = domain.lower().replace('www.', '').strip()
+    for origin_domain in allowed_domains:
+        domain_clean = extract_hostname(origin_domain)
         if not domain_clean:
             continue
         if hostname_clean == domain_clean or hostname_clean.endswith('.' + domain_clean):
@@ -148,7 +153,7 @@ async def _validate_session_workspace(db: AsyncSession, session_id, agent_id):
     key_stmt = select(ApiKey).where(
         ApiKey.workspace_id == agent.workspace_id,
         ApiKey.is_active == True,
-    )
+    ).limit(1)
     key_result = await db.execute(key_stmt)
     if not key_result.scalar_one_or_none():
         return None, None, "No active API key found for this workspace."

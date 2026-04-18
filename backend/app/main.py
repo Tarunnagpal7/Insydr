@@ -89,7 +89,7 @@ app.include_router(widget_router, prefix="/api/v1/widget", tags=["Widget (Public
 app.include_router(invitations_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1", tags=["Admin"])
 app.include_router(health_router, prefix="/api/v1/health", tags=["Health"])
-app.include_router(billing_router, prefix="/api/v1/billing", tags=["Billing"])
+app.include_router(billing_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
